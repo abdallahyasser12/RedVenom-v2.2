@@ -171,7 +171,7 @@ echo -e "${CYAN}[*] Running SQLMap...${NC}"
 sqlmap -m recon_venom/all_cleaned_urls.txt --batch --random-agent --output-dir=recon_venom/sqlmap_results
 
 echo -e "${CYAN}[*] Running XSStrike...${NC}"
-python3 XSStrike/xsstrike.py -l recon_venom/all_cleaned_urls.txt --skip --output recon_venom/xsstrike_results.txt
+python3 XSStrike/xsstrike.py -f recon_venom/all_cleaned_urls.txt --skip --output recon_venom/xsstrike_results.txt
 
 echo -e "${GREEN}[+] Scanning phase complete.${NC}"
 

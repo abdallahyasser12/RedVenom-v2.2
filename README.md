@@ -48,9 +48,13 @@ Parallelized fuzzing with embedded payloads for:
 ## 🛠️ Installation
 
 git clone https://github.com/AbdallahYasser1213/RedVenom
+
 cd RedVenom
+
 chmod +x redvenom.sh
+
 ./redvenom.sh
+
 📦 Dependencies
 Ensure the following tools are installed and in your $PATH:
 

@@ -1,61 +1,58 @@
-🐍 RedVenom v2.2
-RedVenom is a powerful Bash-based offensive security automation tool designed for bug bounty hunters and penetration testers. It automates recon, scanning, fuzzing, and AI-assisted reporting in a fast, parallelized workflow.
+# 🐍 RedVenom v2.2 — Offensive Security Automation Framework
 
-🧑‍💻 Created by Abdallah Yasser — Bug Hunter | Red Team Enthusiast
+**RedVenom** is a powerful Bash-based offensive security automation tool designed for **bug bounty hunters** and **penetration testers**.  
+It automates **recon**, **vulnerability scanning**, **fuzzing**, and **AI-assisted reporting** in a fast, parallelized workflow.
 
-🚀 Features
-🔍 Automated Reconnaissance
-Subdomain enumeration with subfinder
+---
 
-URL extraction with gau
+### 👨‍💻 Created by
+**Abdallah Yasser** — Bug Hunter | Red Team Enthusiast
 
-Live host detection with httpx
+---
 
-Parameter discovery with ParamSpider
+## 🚀 Features
 
-🛡️ Vulnerability Scanning
-SQLi detection with SQLMap
+### 🔍 Automated Reconnaissance
+- 🌐 Subdomain enumeration with `subfinder`
+- 🕸️ URL extraction using `gau`
+- ⚡ Live host detection via `httpx`
+- 🎯 Parameter discovery with `ParamSpider`
 
-XSS detection with XSStrike
+### 🛡️ Vulnerability Scanning
+- 💉 SQL Injection detection with `SQLMap`
+- 🧪 XSS detection with `XSStrike`
 
-💥 Fuzzing Engine
-Embedded payloads for:
+### 💥 Fuzzing Engine
+Parallelized fuzzing with embedded payloads for:
+- [XSS]
+- [SQL Injection]
+- [LFI]
+- [RCE]
+- [SSTI]
+- [SSRF]
+- [Open Redirect]
+- [JSON Injection]
 
-XSS
+✔️ Fuzzing is logged in detail to `fuzzing_log.txt`.
 
-SQLi
+### 🤖 AI Assistant (RedVenom AI)
+- Ask anything during recon or fuzzing
+- Auto-generates summary reports
+- Powered by **OpenRouter** (`mistralai/mistral-7b-instruct`)
 
-LFI
+### 🌐 VPN Integration (Optional)
+- Automatically starts & disconnects VPN using `openvpn`
 
-RCE
+---
 
-SSTI
-
-SSRF
-
-Open Redirect
-
-JSON Injection
-
-Parallelized fuzzing with detailed logging
-
-🤖 AI Assistant
-Ask RedVenom AI anything during recon or fuzzing
-
-Automatically generates summary reports using the OpenAI API
-
-🌐 VPN Integration (Optional)
-Automatically starts and disconnects your VPN using openvpn
-
-🛠️ Installation
+## 🛠️ Installation
 
 git clone https://github.com/AbdallahYasser1213/RedVenom
 cd RedVenom
 chmod +x redvenom.sh
 ./redvenom.sh
-
 📦 Dependencies
-Ensure the following tools are installed:
+Ensure the following tools are installed and in your $PATH:
 
 subfinder
 
@@ -73,44 +70,45 @@ curl, jq, sed, grep, bash
 
 Optional: openvpn, python3
 
-Install common dependencies:
+Quick install for common dependencies:
 
+sudo apt install curl jq python3 -y
+go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+go install github.com/projectdiscovery/httpx/cmd/httpx@latest
+go install github.com/lc/gau@latest
+pip3 install xsstrike paramspider
 
-sudo apt install jq curl python3
-📂 Output
-All results are saved in the recon_venom/ directory:
-
-subdomains.txt, httpx_live.txt, gau_urls.txt
-
-all_cleaned_urls.txt — merged & filtered targets
-
-sqlmap_results/, xsstrike_results.txt
-
-fuzzing_log.txt — tested payloads per URL
-
-ai_report.txt — AI-generated security summary
-
-🤖 AI Integration
+🤖 AI Integration Setup
 To use RedVenom AI:
 
-Get your OpenAI API key
+Get a free API key from https://openrouter.ai
 
-Save it as ~/.openai_key (or enter it when prompted)
+Save your key to ~/.openrouter_key:
 
-Let RedVenom generate vulnerability summaries and answer security queries
 
-🧪 Sample Usage
+echo "sk-or-xxxxxxxxxxxxxxxxxxxxxxxx" > ~/.openrouter_key
+chmod 600 ~/.openrouter_key
+RedVenom will use it to:
 
-./redvenom.sh
-🔎 Example RedVenom AI Prompts
-"Summarize my XSS scan results"
+Answer your recon/fuzzing questions
 
-"Any critical findings in the recon phase?"
+Generate auto summary in ai_report.txt
 
-"What’s the most likely exploitable vector?"
+📁 Output Directory
+All results are saved in recon_venom/:
 
+Copy code
+├── subdomains.txt
+├── gau_urls.txt
+├── httpx_live.txt
+├── paramspider_raw.txt
+├── all_cleaned_urls.txt
+├── sqlmap_results/
+├── xsstrike_results.txt
+├── fuzzing_log.txt
+└── ai_report.txt
 🧠 Fuzzing Payload Coverage
-Category	Payload Examples
+Category	Example Payloads
 XSS	<script>alert(1)</script>
 SQLi	' OR 1=1 --
 LFI	../../../../etc/passwd
@@ -120,11 +118,42 @@ SSRF	http://127.0.0.1
 Open Redirect	/?next=http://evil.com
 JSON Injection	{"input":"<script>alert(1)</script>"}
 
+🧪 Sample Usage
+bash
+Copy code
+./redvenom.sh
+You’ll be prompted for:
+
+✅ Target domain (e.g. example.com)
+
+🔐 VPN toggle
+
+⚙️ URL filtering
+
+🤖 AI queries after scan
+
+💡 Example RedVenom AI Prompts
+"Summarize my XSS scan results"
+
+"Any critical findings in the recon phase?"
+
+"What’s the most likely exploitable vector?"
+
 🧼 Cleanup
-If VPN was enabled, RedVenom auto-disconnects it after execution.
+If VPN was enabled, RedVenom will automatically disconnect openvpn after execution.
 
 ⚠️ Disclaimer
-This tool is for educational and authorized penetration testing only. Unauthorized use is strictly prohibited.
+This tool is for educational use and authorized penetration testing only.
+Do NOT scan targets without permission. Unauthorized use is illegal and unethical.
 
 📃 License
-MIT License
+MIT License — Feel free to use, modify, and contribute.
+
+⭐ Support the Project
+If RedVenom helps you:
+
+⭐ Star the repo
+
+🍴 Fork it and contribute
+
+💬 Share it with other hackers

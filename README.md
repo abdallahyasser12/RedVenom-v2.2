@@ -97,7 +97,7 @@ Generate auto summary in ai_report.txt
 📁 Output Directory
 All results are saved in recon_venom/:
 
-Copy code
+
 ├── subdomains.txt
 ├── gau_urls.txt
 ├── httpx_live.txt
@@ -110,17 +110,23 @@ Copy code
 🧠 Fuzzing Payload Coverage
 Category	Example Payloads
 XSS	<script>alert(1)</script>
+
 SQLi	' OR 1=1 --
+
 LFI	../../../../etc/passwd
+
 RCE	; ping -c 1 127.0.0.1
+
 SSTI	{{7*7}}, <%= 7 * 7 %>
+
 SSRF	http://127.0.0.1
+
 Open Redirect	/?next=http://evil.com
+
 JSON Injection	{"input":"<script>alert(1)</script>"}
 
 🧪 Sample Usage
-bash
-Copy code
+
 ./redvenom.sh
 You’ll be prompted for:
 

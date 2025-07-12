@@ -47,7 +47,7 @@ Parallelized fuzzing with embedded payloads for:
 
 ## 🛠️ Installation
 
-git clone https://github.com/AbdallahYasser1213/RedVenom
+git clone https://github.com/abdallahyasser12/RedVenom-v2.2
 
 cd RedVenom
 

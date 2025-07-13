@@ -3,12 +3,12 @@
 **RedVenom** is a powerful Bash-based offensive security automation tool designed for **bug bounty hunters** and **penetration testers**.  
 It automates **recon**, **vulnerability scanning**, **fuzzing**, and **AI-assisted reporting** in a fast, parallelized workflow.
 
----
+------------------------------------------
 
 ### 👨‍💻 Created by
 **Abdallah Yasser** — Bug Hunter | Red Team Enthusiast
 
----
+------------------------------------------
 
 ## 🚀 Features
 
@@ -43,8 +43,7 @@ Parallelized fuzzing with embedded payloads for:
 ### 🌐 VPN Integration (Optional)
 - Automatically starts & disconnects VPN using `openvpn`
 
----
-
+------------------------------------------
 ## 🛠️ Installation
 
 git clone https://github.com/abdallahyasser12/RedVenom-v2.2
@@ -54,6 +53,8 @@ cd RedVenom
 chmod +x redvenom.sh
 
 ./redvenom.sh
+
+------------------------------------------
 
 📦 Dependencies
 Ensure the following tools are installed and in your $PATH:
@@ -86,6 +87,8 @@ go install github.com/lc/gau@latest
 
 pip3 install xsstrike paramspider
 
+------------------------------------------
+
 🤖 AI Integration Setup
 
 To use RedVenom AI:
@@ -105,7 +108,10 @@ Answer your recon/fuzzing questions
 
 Generate auto summary in ai_report.txt
 
+------------------------------------------
+
 📁 Output Directory
+
 All results are saved in recon_venom/:
 
 
@@ -127,6 +133,8 @@ All results are saved in recon_venom/:
 
 └── ai_report.txt
 
+------------------------------------------
+
 🧠 Fuzzing Payload Coverage
 Category	Example Payloads
 
@@ -145,6 +153,8 @@ SSRF	http://127.0.0.1
 Open Redirect	/?next=http://evil.com
 
 JSON Injection	{"input":"<script>alert(1)</script>"}
+
+------------------------------------------
 
 🧪 Sample Usage
 
@@ -167,6 +177,8 @@ You’ll be prompted for:
 "Any critical findings in the recon phase?"
 
 "What’s the most likely exploitable vector?"
+
+------------------------------------------
 
 🧼 Cleanup
 

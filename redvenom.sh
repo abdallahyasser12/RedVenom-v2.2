@@ -170,8 +170,28 @@ echo -e "${GREEN}[+] Recon phase complete.${NC}"
 echo -e "${CYAN}[*] Running SQLMap...${NC}"
 sqlmap -m recon_venom/all_cleaned_urls.txt --batch --random-agent --output-dir=recon_venom/sqlmap_results
 
-echo -e "${CYAN}[*] Running XSStrike...${NC}"
-python3 XSStrike/xsstrike.py -f recon_venom/all_cleaned_urls.txt --skip --output recon_venom/xsstrike_results.txt
+echo -e "${CYAN}[*] Running XSStrike on each URL...${NC}"
+
+MAX_XS_JOBS=10
+
+manage_xs_jobs() {
+    while [ "$(jobs -rp | wc -l)" -ge "$MAX_XS_JOBS" ]; do
+        sleep 0.5
+    done
+}
+
+> recon_venom/xsstrike_results.txt  # clear file before writing
+
+while read -r url; do
+    [[ -z "$url" ]] && continue  # skip empty lines
+    manage_xs_jobs
+    {
+        echo -e "${CYAN}[XSStrike] Testing: $url${NC}"
+        python3 XSStrike/xsstrike.py -u "$url" --skip --crawl >> recon_venom/xsstrike_results.txt 2>/dev/null
+    } &
+done < recon_venom/all_cleaned_urls.txt
+
+wait
 
 echo -e "${GREEN}[+] Scanning phase complete.${NC}"
 

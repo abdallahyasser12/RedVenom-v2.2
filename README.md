@@ -77,12 +77,17 @@ Optional: openvpn, python3
 Quick install for common dependencies:
 
 sudo apt install curl jq python3 -y
+
 go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+
 go install github.com/projectdiscovery/httpx/cmd/httpx@latest
+
 go install github.com/lc/gau@latest
+
 pip3 install xsstrike paramspider
 
 🤖 AI Integration Setup
+
 To use RedVenom AI:
 
 Get a free API key from https://openrouter.ai
@@ -91,7 +96,9 @@ Save your key to ~/.openrouter_key:
 
 
 echo "sk-or-xxxxxxxxxxxxxxxxxxxxxxxx" > ~/.openrouter_key
+
 chmod 600 ~/.openrouter_key
+
 RedVenom will use it to:
 
 Answer your recon/fuzzing questions
@@ -103,16 +110,26 @@ All results are saved in recon_venom/:
 
 
 ├── subdomains.txt
+
 ├── gau_urls.txt
+
 ├── httpx_live.txt
+
 ├── paramspider_raw.txt
+
 ├── all_cleaned_urls.txt
+
 ├── sqlmap_results/
+
 ├── xsstrike_results.txt
+
 ├── fuzzing_log.txt
+
 └── ai_report.txt
+
 🧠 Fuzzing Payload Coverage
 Category	Example Payloads
+
 XSS	<script>alert(1)</script>
 
 SQLi	' OR 1=1 --
@@ -132,6 +149,7 @@ JSON Injection	{"input":"<script>alert(1)</script>"}
 🧪 Sample Usage
 
 ./redvenom.sh
+
 You’ll be prompted for:
 
 ✅ Target domain (e.g. example.com)
@@ -143,6 +161,7 @@ You’ll be prompted for:
 🤖 AI queries after scan
 
 💡 Example RedVenom AI Prompts
+
 "Summarize my XSS scan results"
 
 "Any critical findings in the recon phase?"
@@ -150,10 +169,12 @@ You’ll be prompted for:
 "What’s the most likely exploitable vector?"
 
 🧼 Cleanup
+
 If VPN was enabled, RedVenom will automatically disconnect openvpn after execution.
 
 ⚠️ Disclaimer
 This tool is for educational use and authorized penetration testing only.
+
 Do NOT scan targets without permission. Unauthorized use is illegal and unethical.
 
 📃 License

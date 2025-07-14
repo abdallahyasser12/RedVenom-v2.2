@@ -278,21 +278,33 @@ manage_xs_jobs() {
 > recon_venom/xsstrike_raw.txt
 > recon_venom/xsstrike_results_clean.txt
 > recon_venom/xsstrike_vulns.txt
-
 while read -r url; do
     [[ -z "$url" ]] && continue
     manage_xs_jobs
     {
         echo -e "${CYAN}[XSStrike] Testing: $url${NC}"
-        XS_OUTPUT=$($XSSTRIKE_CMD -u "$url" --skip --crawl 2>/dev/null | tee -a recon_venom/xsstrike_raw.txt)
+        XS_TEMP=$(mktemp)
+        $XSSTRIKE_CMD -u "$url" --skip --crawl 2>/dev/null | tee "$XS_TEMP" >> recon_venom/xsstrike_raw.txt
 
-        if echo "$XS_OUTPUT" | grep -iqE 'vulnerable|vulnerability|XSS'; then
-            echo "$url [VULNERABLE]" | tee -a recon_venom/xsstrike_results_clean.txt recon_venom/xsstrike_vulns.txt
+        if grep -iqE 'alert|reflected|script|XSS|context|payload' "$XS_TEMP"; then
+            VULN_LINE=$(grep -iE 'alert|reflected|script|XSS|context|payload' "$XS_TEMP" | head -n 1)
+            
+            # Attempt to extract only the payload if possible
+            PAYLOAD=$(echo "$VULN_LINE" | sed -n 's/.*payload: *//Ip')
+
+            # If payload extraction fails, use the whole matched line
+            [[ -z "$PAYLOAD" ]] && PAYLOAD="$VULN_LINE"
+
+            echo "$url [VULNERABLE] → $PAYLOAD" | tee -a recon_venom/xsstrike_results_clean.txt recon_venom/xsstrike_vulns.txt
         else
             echo "$url [Not Vulnerable]" >> recon_venom/xsstrike_results_clean.txt
         fi
+
+        rm -f "$XS_TEMP"
     } &
 done < recon_venom/all_cleaned_urls.txt
+
+
 
 wait
 echo -e "${GREEN}[+] Cleaned XSStrike results saved in:${NC}"
@@ -496,8 +508,11 @@ echo -e "${GREEN}[✔] Fuzzing phase complete. Confirmed results saved in: recon
 echo -e "${CYAN}[*] Launching Nuclei scanning...${NC}"
 mkdir -p recon_venom/nuclei_results confirmed/nuclei
 
-# Run Nuclei silently and output JSON
-nuclei -l recon_venom/all_cleaned_urls.txt -o recon_venom/nuclei_results/raw.txt -json -silent &
+echo -e "${CYAN}[*] Running Nuclei passive & active scan...${NC}"
+nuclei -l recon_venom/all_cleaned_urls.txt -o recon_venom/nuclei_results/raw.txt -json | tee recon_venom/nuclei_results/live_output.txt &
+NUCLEI_PID=$!
+echo -e "${CYAN}[~] Nuclei scan running in background... this may take a while.${NC}"
+
 
 # Parse and extract confirmed vulnerabilities with severity ratings
 {
@@ -513,7 +528,9 @@ nuclei -l recon_venom/all_cleaned_urls.txt -o recon_venom/nuclei_results/raw.txt
 } &
 
 # Wait for all background jobs to finish
+wait $NUCLEI_PID
 wait
+
 
 # Offer AI Assistant or Summary
 echo -e "${CYAN}[✔] All scan phases complete.${NC}"

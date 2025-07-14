@@ -180,8 +180,6 @@ $SUBFINDER_CMD -d "$TARGET" -silent -o recon_venom/subdomains.txt & PID1=$!
 echo -e "${CYAN}[*] Running gau...${NC}"
 $GAU_CMD --subs "$TARGET" > recon_venom/gau_urls.txt & PID2=$!
 
-
-
 wait $PID1
 echo -e "${CYAN}[*] Running httpx...${NC}"
 $HTTPX_CMD -l recon_venom/subdomains.txt -silent -o recon_venom/httpx_live.txt & PID3=$!
@@ -189,12 +187,20 @@ $HTTPX_CMD -l recon_venom/subdomains.txt -silent -o recon_venom/httpx_live.txt &
 wait $PID2
 wait $PID3
 
-# Check outputs
+# Fallback: Use direct target if httpx found nothing
 if [[ ! -s recon_venom/httpx_live.txt ]]; then
-    echo -e "${RED}[-] No live subdomains found by httpx. Exiting.${NC}"
+    echo -e "${YELLOW}[!] No live subdomains found by httpx. Trying direct target...${NC}"
+    echo "$TARGET" > recon_venom/httpx_live.txt
+    $HTTPX_CMD -l recon_venom/httpx_live.txt -silent -o recon_venom/httpx_live.txt
+fi
+
+# Still empty after fallback? Exit.
+if [[ ! -s recon_venom/httpx_live.txt ]]; then
+    echo -e "${RED}[-] Still no live domains found. Exiting.${NC}"
     exit 1
 fi
 
+# Ensure gau output exists (should always exist if no crash)
 if [[ ! -f recon_venom/gau_urls.txt ]]; then
     echo -e "${YELLOW}[!] gau output not found. Creating empty fallback file.${NC}"
     touch recon_venom/gau_urls.txt

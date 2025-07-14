@@ -278,22 +278,18 @@ manage_xs_jobs() {
 > recon_venom/xsstrike_raw.txt
 > recon_venom/xsstrike_results_clean.txt
 > recon_venom/xsstrike_vulns.txt
+
 while read -r url; do
     [[ -z "$url" ]] && continue
     manage_xs_jobs
     {
         echo -e "${CYAN}[XSStrike] Testing: $url${NC}"
         XS_TEMP=$(mktemp)
-        $XSSTRIKE_CMD -u "$url" --skip --crawl 2>/dev/null | tee "$XS_TEMP" >> recon_venom/xsstrike_raw.txt
+        $XSSTRIKE_CMD -u "$url" --skip --crawl 2>&1 | tee "$XS_TEMP" >> recon_venom/xsstrike_raw.txt
 
-        if grep -iqE 'alert|reflected|script|XSS|context|payload' "$XS_TEMP"; then
-            VULN_LINE=$(grep -iE 'alert|reflected|script|XSS|context|payload' "$XS_TEMP" | head -n 1)
-            
-            # Attempt to extract only the payload if possible
-            PAYLOAD=$(echo "$VULN_LINE" | sed -n 's/.*payload: *//Ip')
-
-            # If payload extraction fails, use the whole matched line
-            [[ -z "$PAYLOAD" ]] && PAYLOAD="$VULN_LINE"
+        if grep -iqE 'Payload:|Injection successful|reflected|context|alert|XSS' "$XS_TEMP"; then
+            PAYLOAD=$(grep -i 'Payload:' "$XS_TEMP" | head -n 1 | cut -d':' -f2- | xargs)
+            [[ -z "$PAYLOAD" ]] && PAYLOAD=$(grep -i 'Injection successful' "$XS_TEMP" | head -n 1 || echo "Generic XSS")
 
             echo "$url [VULNERABLE] → $PAYLOAD" | tee -a recon_venom/xsstrike_results_clean.txt recon_venom/xsstrike_vulns.txt
         else
@@ -304,8 +300,6 @@ while read -r url; do
     } &
 done < recon_venom/all_cleaned_urls.txt
 
-
-
 wait
 echo -e "${GREEN}[+] Cleaned XSStrike results saved in:${NC}"
 echo -e "${CYAN}    - recon_venom/xsstrike_results_clean.txt"
@@ -313,6 +307,7 @@ echo -e "${CYAN}    - recon_venom/xsstrike_vulns.txt"
 echo -e "${CYAN}    - recon_venom/xsstrike_raw.txt${NC}"
 
 echo -e "${GREEN}[+] Scanning phase complete.${NC}"
+
 
 
 # PHASE 4 — Fuzzing (XSS, SQLi, LFI, Redirect, SSTI, RCE, JSONi, SSRF)

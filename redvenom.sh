@@ -216,6 +216,7 @@ done < recon_venom/httpx_live.txt
 
 grep -Eo 'https?://[^ ]+\?[^ ]+' "$RAW_OUTPUT" | sort -u > "$CLEAN_OUTPUT"
 echo -e "${GREEN}[✔] ParamSpider output saved to:${NC} $CLEAN_OUTPUT"
+fi
 
 # Hidden Parameter Discovery via Arjun
 echo -e "${CYAN}[*] Running Arjun for hidden parameter discovery...${NC}"

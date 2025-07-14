@@ -178,7 +178,8 @@ echo -e "${CYAN}[*] Running Subfinder...${NC}"
 $SUBFINDER_CMD -d "$TARGET" -silent -o recon_venom/subdomains.txt & PID1=$!
 
 echo -e "${CYAN}[*] Running gau...${NC}"
-$GAU_CMD --subs -o recon_venom/gau_urls.txt "$TARGET" & PID2=$!
+$GAU_CMD --subs "$TARGET" > recon_venom/gau_urls.txt
+
 
 wait $PID1
 echo -e "${CYAN}[*] Running httpx...${NC}"

@@ -194,11 +194,12 @@ if [[ ! -s recon_venom/httpx_live.txt ]]; then
     $HTTPX_CMD -l recon_venom/httpx_live.txt -silent -o recon_venom/httpx_live.txt
 fi
 
-# Still empty after fallback? Exit.
+# If still empty, force-add root domain to continue
 if [[ ! -s recon_venom/httpx_live.txt ]]; then
-    echo -e "${RED}[-] Still no live domains found. Exiting.${NC}"
-    exit 1
+    echo -e "${YELLOW}[!] Still no live domains found. Forcing root domain into list...${NC}"
+    echo "$TARGET" > recon_venom/httpx_live.txt
 fi
+
 
 # Ensure gau output exists (should always exist if no crash)
 if [[ ! -f recon_venom/gau_urls.txt ]]; then
@@ -279,47 +280,58 @@ fi
 echo -e "${GREEN}[✔] Recon phase complete. Output in:${NC} recon_venom/all_cleaned_urls.txt"
 GREEN}[✔] Recon phase complete. Output in:${NC} recon_venom/all_cleaned_urls.txt"
 
-#sqlmap+xsstrike phase
+# === PHASE SQLMap and XSStrike Scanning ===
+
+# Detect SQLMap
 SQLMAP_CMD=$(command -v sqlmap)
+if [[ -z "$SQLMAP_CMD" ]]; then
+    echo -e "${YELLOW}[!] SQLMap not found in PATH. Skipping SQLi scan.${NC}"
+else
+    echo -e "${CYAN}[*] Running SQLMap on collected URLs...${NC}"
+    $SQLMAP_CMD -m recon_venom/all_cleaned_urls.txt --batch --random-agent --output-dir=recon_venom/sqlmap_results
+fi
 
-echo -e "${CYAN}[*] Running SQLMap...${NC}"
-$SQLMAP_CMD -m recon_venom/all_cleaned_urls.txt --batch --random-agent --output-dir=recon_venom/sqlmap_results
+# Detect XSStrike
+XSSTRIKE_PATH="XSStrike/xsstrike.py"
+if [[ ! -f "$XSSTRIKE_PATH" ]]; then
+    echo -e "${YELLOW}[!] XSStrike not found at $XSSTRIKE_PATH. Skipping XSS scan.${NC}"
+else
+    echo -e "${CYAN}[*] Running XSStrike on each URL...${NC}"
 
-echo -e "${CYAN}[*] Running XSStrike on each URL...${NC}"
+    MAX_XS_JOBS=10
+    manage_xs_jobs() {
+        while [ "$(jobs -rp | wc -l)" -ge "$MAX_XS_JOBS" ]; do
+            sleep 0.5
+        done
+    }
 
-MAX_XS_JOBS=10
-manage_xs_jobs() {
-    while [ "$(jobs -rp | wc -l)" -ge "$MAX_XS_JOBS" ]; do
-        sleep 0.5
-    done
-}
+    > recon_venom/xsstrike_raw.txt
+    > recon_venom/xsstrike_results_clean.txt
+    > recon_venom/xsstrike_vulns.txt
 
-> recon_venom/xsstrike_raw.txt
-> recon_venom/xsstrike_results_clean.txt
-> recon_venom/xsstrike_vulns.txt
+    while read -r url; do
+        [[ -z "$url" ]] && continue
+        manage_xs_jobs
+        {
+            echo -e "${CYAN}[XSStrike] Testing: $url${NC}"
+            XS_OUTPUT=$(python3 "$XSSTRIKE_PATH" -u "$url" --skip --crawl 2>/dev/null | tee -a recon_venom/xsstrike_raw.txt)
 
-while read -r url; do
-    [[ -z "$url" ]] && continue
-    manage_xs_jobs
-    {
-        echo -e "${CYAN}[XSStrike] Testing: $url${NC}"
-        XS_OUTPUT=$(python3 XSStrike/xsstrike.py -u "$url" --skip --crawl 2>/dev/null | tee -a recon_venom/xsstrike_raw.txt)
+            if echo "$XS_OUTPUT" | grep -iqE 'vulnerable|vulnerability|XSS'; then
+                echo "$url [VULNERABLE]" | tee -a recon_venom/xsstrike_results_clean.txt recon_venom/xsstrike_vulns.txt
+            else
+                echo "$url [Not Vulnerable]" >> recon_venom/xsstrike_results_clean.txt
+            fi
+        } &
+    done < recon_venom/all_cleaned_urls.txt
 
-        if echo "$XS_OUTPUT" | grep -iqE 'vulnerable|vulnerability|XSS'; then
-            echo "$url [VULNERABLE]" | tee -a recon_venom/xsstrike_results_clean.txt recon_venom/xsstrike_vulns.txt
-        else
-            echo "$url [Not Vulnerable]" >> recon_venom/xsstrike_results_clean.txt
-        fi
-    } &
-done < recon_venom/all_cleaned_urls.txt
+    wait
+    echo -e "${GREEN}[+] Cleaned XSStrike results saved in:${NC}"
+    echo -e "${CYAN}    - recon_venom/xsstrike_results_clean.txt"
+    echo -e "${CYAN}    - recon_venom/xsstrike_vulns.txt"
+    echo -e "${CYAN}    - recon_venom/xsstrike_raw.txt${NC}"
+fi
 
-wait
-echo -e "${GREEN}[+] Cleaned XSStrike results saved in:${NC}"
-echo -e "${CYAN}    - recon_venom/xsstrike_results_clean.txt"
-echo -e "${CYAN}    - recon_venom/xsstrike_vulns.txt"
-echo -e "${CYAN}    - recon_venom/xsstrike_raw.txt${NC}"
-
-echo -e "${GREEN}[+] Scanning phase complete.${NC}"
+echo -e "${GREEN}[✔] Scanning phase complete.${NC}"
 
 
 # PHASE 4 — Fuzzing (XSS, SQLi, LFI, Redirect, SSTI, RCE, JSONi, SSRF)

@@ -7,6 +7,8 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 CYAN='\033[0;36m'
 NC='\033[0m'
+YELLOW='\033[1;33m'
+
 
 echo -e "${RED}"
 echo "██████╗ ███████╗██████╗ ██╗   ██╗███████╗███╗   ███╗ ██████╗ ███╗   ███╗"
@@ -52,6 +54,10 @@ XSSTRIKE_CMD=$(command -v xsstrike 2>/dev/null)
 
 NUCLEI_CMD=$(command -v nuclei 2>/dev/null)
 [[ -z "$NUCLEI_CMD" ]] && echo -e "${YELLOW}[!] nuclei not found. Passive scanning skipped.${NC}"
+# Version compare helper
+version_gt() {
+    test "$(printf '%s\n' "$@" | sort -V | head -n 1)" != "$1"
+}
 
 
 
@@ -154,6 +160,7 @@ else
 fi
 
 mkdir -p recon_venom results
+
 # PHASE 2 — Enhanced Recon (RedVenom v3)
 # Detect required tools
 SUBFINDER_CMD=$(command -v subfinder)
@@ -186,11 +193,28 @@ fi
 [[ -n "$PID1" ]] && wait $PID1
 if [[ -n "$HTTPX_CMD" ]]; then
     echo -e "${CYAN}[*] Running httpx...${NC}"
-    $HTTPX_CMD -l recon_venom/subdomains.txt -silent -o recon_venom/httpx_live.txt & PID3=$!
+    HTTPX_VERSION=$($HTTPX_CMD -version 2>/dev/null | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' || echo "0.0.0")
+
+    if version_gt "$HTTPX_VERSION" "1.2.9"; then
+        if [[ -s recon_venom/subdomains.txt ]]; then
+            $HTTPX_CMD -l recon_venom/subdomains.txt -silent -o recon_venom/httpx_live.txt & PID3=$!
+        else
+            echo -e "${RED}[-] No subdomains found to probe with httpx.${NC}"
+        fi
+    else
+        echo -e "${YELLOW}[!] Old httpx detected. Falling back to stdin mode.${NC}"
+        if [[ -s recon_venom/subdomains.txt ]]; then
+            cat recon_venom/subdomains.txt | $HTTPX_CMD -silent > recon_venom/httpx_live.txt & PID3=$!
+        else
+            echo -e "${RED}[-] No subdomains found for fallback stdin httpx.${NC}"
+        fi
+    fi
 else
     echo -e "${RED}[-] httpx not found. Skipping.${NC}"
     PID3=""
 fi
+
+
 
 [[ -n "$PID2" ]] && wait $PID2
 [[ -n "$PID3" ]] && wait $PID3
@@ -225,6 +249,9 @@ $ARJUN_CMD -i recon_venom/httpx_live.txt -oT recon_venom/params/arjun_params.txt
 # JavaScript link extraction (filtered by target domain)
 echo -e "${CYAN}[*] Finding JS files from gau output...${NC}"
 
+mkdir -p recon_venom/js
+touch recon_venom/js/js_files.txt
+
 if [[ ! -s recon_venom/gau_urls.txt ]]; then
     echo -e "${RED}[-] gau output not found. Skipping JS file extraction.${NC}"
 else
@@ -237,6 +264,7 @@ while read -r jsurl; do
     $CURL_CMD -sk "$jsurl" | grep -Eo '[a-zA-Z0-9_\/.-]+?\.(php|asp|aspx|jsp|json|cgi)' >> recon_venom/js/endpoints.txt
 done < recon_venom/js/js_files.txt
 sort -u recon_venom/js/endpoints.txt -o recon_venom/js/endpoints.txt
+
 
 # Merge Everything
 echo -e "${CYAN}[*] Merging URLs for final list...${NC}"
@@ -503,10 +531,15 @@ echo -e "${GREEN}[✔] Fuzzing phase complete. Confirmed results saved in: recon
 echo -e "${CYAN}[*] Launching Nuclei scanning...${NC}"
 mkdir -p recon_venom/nuclei_results confirmed/nuclei
 
-echo -e "${CYAN}[*] Running Nuclei passive & active scan...${NC}"
-nuclei -l recon_venom/all_cleaned_urls.txt -o recon_venom/nuclei_results/raw.txt -json | tee recon_venom/nuclei_results/live_output.txt &
-NUCLEI_PID=$!
-echo -e "${CYAN}[~] Nuclei scan running in background... this may take a while.${NC}"
+if [[ -n "$NUCLEI_CMD" ]]; then
+    echo -e "${CYAN}[*] Running Nuclei passive & active scan...${NC}"
+    $NUCLEI_CMD -l recon_venom/all_cleaned_urls.txt -o recon_venom/nuclei_results/raw.txt -json | tee recon_venom/nuclei_results/live_output.txt &
+    NUCLEI_PID=$!
+    echo -e "${CYAN}[~] Nuclei scan running in background... this may take a while.${NC}"
+else
+    echo -e "${RED}[-] Nuclei not found. Skipping scan.${NC}"
+    NUCLEI_PID=""
+fi
 
 
 # Parse and extract confirmed vulnerabilities with severity ratings
@@ -523,7 +556,8 @@ echo -e "${CYAN}[~] Nuclei scan running in background... this may take a while.$
 } &
 
 # Wait for all background jobs to finish
-wait $NUCLEI_PID
+[[ -n "$NUCLEI_PID" ]] && wait $NUCLEI_PID
+
 wait
 
 

@@ -181,6 +181,26 @@ If VPN was enabled, RedVenom will automatically disconnect `openvpn` after execu
 
 ---
 
+## 🧠 From RedVenom to VulnGPT
+
+RedVenom started as an experiment in automating reconnaissance, fuzzing, scanning, and AI-assisted security workflows. **VulnGPT** is the next step: a NovaSecLabs web-application security platform focused on deeper, stateful testing and **evidence-backed vulnerability confirmation**.
+
+VulnGPT is being engineered around areas where simple payload-and-pattern scanners struggle, including:
+
+- 🔐 Authenticated application testing and session continuity
+- 👥 Multi-user / multi-role authorization analysis
+- 🔎 BOLA / IDOR and object-ownership boundaries
+- 🧠 Business-logic and multi-step workflow testing
+- 🧱 WAF / interference-aware validation
+- 🧾 Reproducible evidence, confirmation, and retesting
+
+### Gauntlet G1 benchmark
+
+In our controlled first-generation Gauntlet benchmark, VulnGPT **confirmed 41 of 42 planted vulnerabilities**. This is an internal controlled benchmark result, not a claim of a universal 97.6% detection rate across real-world applications. We are deliberately making later benchmark generations harder rather than optimizing only for the original score.
+
+🌐 **NovaSecLabs / VulnGPT:** https://www.novaseclabs.com  
+🧪 **Private beta:** https://www.novaseclabs.com/waitlist
+
 ## ⭐ Support the Project
 
 If RedVenom helps you:

@@ -196,7 +196,7 @@ VulnGPT is being engineered around areas where simple payload-and-pattern scanne
 
 ### Gauntlet G1 benchmark
 
-In our controlled first-generation Gauntlet benchmark, VulnGPT **confirmed 41 of 42 planted vulnerabilities**. This is an internal controlled benchmark result, not a claim of a universal 97.6% detection rate across real-world applications. We are deliberately making later benchmark generations harder rather than optimizing only for the original score.
+The certified first-generation Gauntlet G1 freeze recorded a **raw 39/51 matrix with fp_sum = 0**. After the benchmark's documented adjudication excluded 2 out-of-scope, 3 invalid-ground-truth, and 4 structurally unobservable rows, the **valid-in-scope score was 41/42 with 0 valid-in-scope misses remaining**. These are internal controlled benchmark results, not universal real-world detection rates. Later benchmark generations are deliberately harder.
 
 🌐 **NovaSecLabs / VulnGPT:** https://www.novaseclabs.com  
 🧪 **Private beta:** https://www.novaseclabs.com/waitlist

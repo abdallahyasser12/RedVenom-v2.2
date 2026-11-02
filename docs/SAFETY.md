@@ -24,6 +24,8 @@ The following observations are based on the checked-in `redvenom.sh` and are not
 - **Heuristic response matching:** built-in checks look for simple response strings. These checks can produce false positives and false negatives; they do not prove exploitability or impact.
 - **External AI processing:** the optional OpenRouter features send prompts and selected local scan-output excerpts to an external API. Review what data is included and whether disclosure is authorized.
 
+- **TLS verification and request timeouts:** built-in curl requests use normal certificate verification (no `--insecure` / `-k`) and bounded connect/total timeouts. Third-party scanner TLS behavior is managed by those tools and must be reviewed separately.
+
 ## Safe operating boundaries
 
 - Run from a dedicated, disposable working copy and a non-privileged user account whenever possible.

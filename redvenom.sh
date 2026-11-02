@@ -21,7 +21,32 @@ echo -e "${NC}"
 echo -e "${CYAN}🔗 Created by Abdallah Yasser | RedVenom v2.2${NC}"
 echo "==================================================================="
 
-MAX_JOBS=50
+resolve_concurrency_limit() {
+    local setting_name="$1"
+    local requested="$2"
+    local default_value="$3"
+    local maximum="$4"
+    local numeric_value
+
+    if [[ ! "$requested" =~ ^[0-9]+$ ]]; then
+        echo -e "${YELLOW}[!] $setting_name must be an integer; using default $default_value.${NC}" >&2
+        printf '%s\\n' "$default_value"
+        return
+    fi
+
+    numeric_value=$((10#$requested))
+    if (( numeric_value < 1 || numeric_value > maximum )); then
+        echo -e "${YELLOW}[!] $setting_name must be between 1 and $maximum; using default $default_value.${NC}" >&2
+        printf '%s\\n' "$default_value"
+        return
+    fi
+
+    printf '%s\\n' "$numeric_value"
+}
+
+# Per-stage limits are tunable but remain bounded to protect targets and the host.
+MAX_XS_JOBS=$(resolve_concurrency_limit "REDVENOM_MAX_XS_JOBS" "${REDVENOM_MAX_XS_JOBS:-4}" 4 10)
+MAX_JOBS=$(resolve_concurrency_limit "REDVENOM_MAX_FUZZ_JOBS" "${REDVENOM_MAX_FUZZ_JOBS:-5}" 5 20)
 
 manage_jobs() {
     while [ "$(jobs -rp | wc -l)" -ge "$MAX_JOBS" ]; do
@@ -390,7 +415,6 @@ $SQLMAP_CMD -m ${RUN_DIR}/all_cleaned_urls.txt --batch --random-agent --output-d
 
 echo -e "${CYAN}[*] Running XSStrike on each URL...${NC}"
 
-MAX_XS_JOBS=10
 manage_xs_jobs() {
     while [ "$(jobs -rp | wc -l)" -ge "$MAX_XS_JOBS" ]; do
         sleep 0.5
@@ -548,7 +572,6 @@ detect_vuln() {
 }
 
 # Control job limit
-MAX_JOBS=15
 manage_jobs() {
     while [ "$(jobs -rp | wc -l)" -ge "$MAX_JOBS" ]; do
         sleep 0.3

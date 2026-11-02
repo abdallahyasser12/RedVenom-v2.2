@@ -2,7 +2,7 @@
 .venv/
 venv/
 __pycache__/
-*.py[code]
+*.py[cod]
 
 # Runtime scan data and generated payloads
 recon_venom/
@@ -17,7 +17,7 @@ XSStrike/
 .env
 .env.*
 .openrouter_key
-ʮovpn
+*.ovpn
 
 # Logs and editor/OS noise
 *.log

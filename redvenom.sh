@@ -154,8 +154,8 @@ TARGET=$(python3 scripts/validate_target.py --target "$TARGET") || {
 read -p "[?] Do you want to enable VPN? (y/n): " VPN_OPTION
 
 # Give every invocation a unique artifact directory; never reuse or purge prior results.
-RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)-$"
-RUN_DIR="${RUN_DIR}/runs/${RUN_ID}"
+RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)-${BASHPID}"
+RUN_DIR="recon_venom/runs/${RUN_ID}"
 PAYLOAD_DIR="${RUN_DIR}/payloads"
 
 # PHASE 1 — VPN (Optional)

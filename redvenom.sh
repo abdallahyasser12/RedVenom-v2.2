@@ -236,6 +236,9 @@ fi
 [[ -n "$PID2" ]] && wait $PID2
 [[ -n "$PID3" ]] && wait $PID3
 
+# Normalize empty tool outputs so a clean discovery miss does not abort filtering.
+touch recon_venom/subdomains.txt recon_venom/httpx_live.txt recon_venom/gau_urls.txt
+
 # Filter discovered live hosts and archived URLs before follow-on requests.
 python3 scripts/filter_scope.py --root "$TARGET" --input recon_venom/httpx_live.txt --output recon_venom/httpx_live.scoped.txt || exit 1
 mv recon_venom/httpx_live.scoped.txt recon_venom/httpx_live.txt

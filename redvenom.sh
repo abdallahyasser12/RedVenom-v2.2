@@ -146,6 +146,11 @@ EOF
 
 
 read -p "[?] Enter the target domain (e.g. example.com): " TARGET
+
+TARGET=$(python3 scripts/validate_target.py --target "$TARGET") || {
+    echo -e "${RED}[-] Invalid target. Enter a bare DNS hostname or IP address, without a scheme, port, path, or wildcard.${NC}"
+    exit 2
+}
 read -p "[?] Do you want to enable VPN? (y/n): " VPN_OPTION
 
 # PHASE 1 — VPN (Optional)

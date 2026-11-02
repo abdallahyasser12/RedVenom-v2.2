@@ -204,6 +204,10 @@ else
 fi
 
 [[ -n "$PID1" ]] && wait $PID1
+
+# Enforce the selected root-domain boundary on discovered hostnames before probing.
+python3 scripts/filter_scope.py --root "$TARGET" --input recon_venom/subdomains.txt --output recon_venom/subdomains.scoped.txt || exit 1
+mv recon_venom/subdomains.scoped.txt recon_venom/subdomains.txt
 if [[ -n "$HTTPX_CMD" ]]; then
     echo -e "${CYAN}[*] Running httpx...${NC}"
     HTTPX_VERSION=$($HTTPX_CMD -version 2>/dev/null | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' || echo "0.0.0")
@@ -231,6 +235,15 @@ fi
 
 [[ -n "$PID2" ]] && wait $PID2
 [[ -n "$PID3" ]] && wait $PID3
+
+# Normalize empty tool outputs so a clean discovery miss does not abort filtering.
+touch recon_venom/subdomains.txt recon_venom/httpx_live.txt recon_venom/gau_urls.txt
+
+# Filter discovered live hosts and archived URLs before follow-on requests.
+python3 scripts/filter_scope.py --root "$TARGET" --input recon_venom/httpx_live.txt --output recon_venom/httpx_live.scoped.txt || exit 1
+mv recon_venom/httpx_live.scoped.txt recon_venom/httpx_live.txt
+python3 scripts/filter_scope.py --root "$TARGET" --input recon_venom/gau_urls.txt --output recon_venom/gau_urls.scoped.txt || exit 1
+mv recon_venom/gau_urls.scoped.txt recon_venom/gau_urls.txt
 
 
 echo -e "${CYAN}[*] Running ParamSpider...${NC}"
@@ -299,6 +312,10 @@ else
 fi
 
 echo -e "${GREEN}[✔] Recon phase complete. Output in:${NC} recon_venom/all_cleaned_urls.txt"
+
+# Final defense-in-depth filter before active scanners and fuzzers.
+python3 scripts/filter_scope.py --root "$TARGET" --input recon_venom/all_cleaned_urls.txt --output recon_venom/all_cleaned_urls.scoped.txt || exit 1
+mv recon_venom/all_cleaned_urls.scoped.txt recon_venom/all_cleaned_urls.txt
 
 
 #sqlmap+xsstrike phase

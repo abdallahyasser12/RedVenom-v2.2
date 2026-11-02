@@ -157,6 +157,7 @@ read -p "[?] Do you want to enable VPN? (y/n): " VPN_OPTION
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)-${BASHPID}"
 RUN_DIR="recon_venom/runs/${RUN_ID}"
 PAYLOAD_DIR="${RUN_DIR}/payloads"
+mkdir -p "$RUN_DIR" "$PAYLOAD_DIR"
 
 # PHASE 1 — VPN (Optional)
 if [[ "$VPN_OPTION" == "y" ]]; then
@@ -177,7 +178,7 @@ else
     echo -e "${CYAN}[*] VPN skipped by user.${NC}"
 fi
 
-mkdir -p recon_venom results
+mkdir -p "$RUN_DIR"
 
 # PHASE 2 — Enhanced Recon (RedVenom v3)
 # Detect required tools
@@ -374,7 +375,7 @@ echo -e "${GREEN}[+] Scanning phase complete.${NC}"
 
 # PHASE 4 — Fuzzing (XSS, SQLi, LFI, Redirect, SSTI, RCE, JSONi, SSRF)
 echo -e "${CYAN}[*] Preparing payload files and confirmed folder...${NC}"
-mkdir -p payloads ${RUN_DIR}/confirmed
+mkdir -p "$PAYLOAD_DIR" "${RUN_DIR}/confirmed"
 
 # Payload sets
 
@@ -563,7 +564,7 @@ echo -e "${GREEN}[✔] Fuzzing phase complete. Confirmed results saved in: ${RUN
 
 # PHASE 5 — Passive/Active Scanning with Nuclei (Parallel)
 echo -e "${CYAN}[*] Launching Nuclei scanning...${NC}"
-mkdir -p ${RUN_DIR}/nuclei_results confirmed/nuclei
+mkdir -p "${RUN_DIR}/nuclei_results" "${RUN_DIR}/confirmed/nuclei"
 
 if [[ -n "$NUCLEI_CMD" ]]; then
     echo -e "${CYAN}[*] Running Nuclei passive & active scan...${NC}"

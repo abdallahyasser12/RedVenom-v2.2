@@ -32,7 +32,13 @@ When available, also run:
 shellcheck redvenom.sh
 ```
 
-For documentation changes:
+For the complete offline repository check (Bash syntax, Python compilation, documentation/links, and unit/contract tests), run:
+
+```bash
+bash scripts/test.sh
+```
+
+For documentation-only changes, the narrower checker is also available:
 
 ```bash
 python3 scripts/check_docs.py

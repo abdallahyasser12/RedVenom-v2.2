@@ -107,6 +107,24 @@ bash -n redvenom.sh
 
 This does not contact a target. It only checks Bash syntax. Do not use an arbitrary public domain as an installation test: the normal script proceeds into active scanning and fuzzing. Test network behavior only in an isolated lab that you control and have explicitly authorized.
 
+
+## Concurrency tuning
+
+Two environment variables control the worker limits for the active phases:
+
+- `REDVENOM_MAX_XS_JOBS`: concurrent XSStrike workers (default `4`, accepted range `1-10`).
+- `REDVENOM_MAX_FUZZ_JOBS`: concurrent built-in fuzzing requests (default `5`, accepted range `1-20`).
+
+Set them in the current shell before starting RedVenom, for example:
+
+```bash
+export REDVENOM_MAX_XS_JOBS=2
+export REDVENOM_MAX_FUZZ_JOBS=4
+./redvenom.sh
+```
+
+Invalid or out-of-range values fall back to the documented defaults. These are per-stage concurrency ceilings, not a global request-rate limiter or an engagement-wide request budget. Third-party scanners may also manage their own internal concurrency; tune those separately under the engagement rules.
+
 ## 7. Optional VPN integration
 
 The current script's VPN option expects `$HOME/vpn-config.ovpn` and invokes OpenVPN with `sudo`. It starts OpenVPN as a daemon with a run-specific PID file, then checks the recorded PID and process name before stopping it. An OpenVPN process that was already running is left untouched. This path has not been integration-tested against your local OpenVPN configuration; first validate it in a disposable environment and confirm that `sudo` can start and stop the daemon as expected.

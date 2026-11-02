@@ -52,10 +52,18 @@ def entry_host(value: str) -> str | None:
         return None
 
     if "://" in candidate:
-        parsed = urlsplit(candidate)
-        if parsed.scheme.lower() not in ("http", "https") or not parsed.hostname:
+        try:
+            parsed = urlsplit(candidate)
+            # Accessing .port validates that an authority port is numeric and
+            # within the allowed TCP/UDP range; urllib raises for malformed ports.
+            port = parsed.port
+        except ValueError:
+            return None
+        if parsed.scheme.lower() not in ("http", "https") or not parsed.netloc or not parsed.hostname:
             return None
         if parsed.username is not None or parsed.password is not None:
+            return None
+        if port is not None and not 1 <= port <= 65535:
             return None
         return parsed.hostname
 

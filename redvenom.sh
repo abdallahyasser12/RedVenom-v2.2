@@ -28,7 +28,7 @@ resolve_concurrency_limit() {
     local maximum="$4"
     local numeric_value
 
-    if [[ ! "$requested" =~ ^[0-9]+$ ]]; then
+    if [[ ! "$requested" =~ ^[0-9]+$ ]] || (( ${#requested} > 2 )); then
         echo -e "${YELLOW}[!] $setting_name must be an integer; using default $default_value.${NC}" >&2
         printf '%s\n' "$default_value"
         return

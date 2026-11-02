@@ -1,0 +1,62 @@
+name: Bug report
+description: Report a reproducible problem in RedVenom.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include credentials, cookies, VPN profiles, private target details, or scan output from systems you do not own. Security vulnerabilities must be reported privately; see the repository security policy.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the problem and its impact.
+      placeholder: A clear, concise description of the unexpected behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Safe reproduction steps
+      description: Use local fixtures or an environment you own or are explicitly authorized to test.
+      placeholder: |
+        1. Configure...
+        2. Run...
+        3. Observe...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+      description: Explain what you expected and what occurred instead.
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: RedVenom commit or version
+      placeholder: main commit SHA or repository version
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include OS, Bash, Python, and relevant external-tool versions. Redact hostnames and sensitive values.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Redacted logs (optional)
+      description: Remove API keys, tokens, cookies, private hostnames, and customer information before posting.
+    validations:
+      required: false
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Responsible-use confirmation
+      options:
+        - label: I removed secrets and private target data, and any reproduction uses a local fixture or an authorized system.
+          required: true

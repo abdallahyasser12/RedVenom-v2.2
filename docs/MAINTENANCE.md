@@ -35,7 +35,7 @@ The documentation checker validates required documentation files, balanced Markd
 3. Request budgeting: concurrency is embedded in the script; there is no operator-controlled global request budget or rate profile.
 4. Run retention: each invocation now writes to a unique `recon_venom/runs/<timestamp>-<pid>/` directory, preserving prior results. A cleanup policy is still needed because old runs accumulate.
 5. Dependency preflight: missing dependencies do not consistently stop execution before later stages call missing commands.
-6. Process ownership: optional VPN cleanup uses killall openvpn rather than tracking only the process started by the script.
+6. VPN integration: cleanup now records a PID and checks the process name before signaling; a local integration test with the installed OpenVPN binary and configuration is still required.
 7. Finding validation: several built-in checks use simple string matching and must not be represented as definitive vulnerability confirmation.
 8. Reproducible testing: no safe local test harness currently covers the orchestration flow or built-in detection routines.
 

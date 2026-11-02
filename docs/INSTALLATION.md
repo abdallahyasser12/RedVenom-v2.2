@@ -109,7 +109,7 @@ This does not contact a target. It only checks Bash syntax. Do not use an arbitr
 
 ## 7. Optional VPN integration
 
-The current script's VPN option expects `~/vpn-config.ovpn`, invokes OpenVPN with `sudo`, and later runs `sudo killall openvpn`. That cleanup can terminate OpenVPN processes that were not started by RedVenom. For that reason, this guide does **not** recommend enabling the VPN option. Manage VPN connectivity outside RedVenom until its process lifecycle is corrected.
+The current script's VPN option expects `$HOME/vpn-config.ovpn` and invokes OpenVPN with `sudo`. It starts OpenVPN as a daemon with a run-specific PID file, then checks the recorded PID and process name before stopping it. An OpenVPN process that was already running is left untouched. This path has not been integration-tested against your local OpenVPN configuration; first validate it in a disposable environment and confirm that `sudo` can start and stop the daemon as expected.
 
 ## 8. Optional OpenRouter integration
 

@@ -30,18 +30,18 @@ resolve_concurrency_limit() {
 
     if [[ ! "$requested" =~ ^[0-9]+$ ]]; then
         echo -e "${YELLOW}[!] $setting_name must be an integer; using default $default_value.${NC}" >&2
-        printf '%s\\n' "$default_value"
+        printf '%s\n' "$default_value"
         return
     fi
 
     numeric_value=$((10#$requested))
     if (( numeric_value < 1 || numeric_value > maximum )); then
         echo -e "${YELLOW}[!] $setting_name must be between 1 and $maximum; using default $default_value.${NC}" >&2
-        printf '%s\\n' "$default_value"
+        printf '%s\n' "$default_value"
         return
     fi
 
-    printf '%s\\n' "$numeric_value"
+    printf '%s\n' "$numeric_value"
 }
 
 # Per-stage limits are tunable but remain bounded to protect targets and the host.

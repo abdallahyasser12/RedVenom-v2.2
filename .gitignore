@@ -11,13 +11,13 @@ results/
 payloads/
 
 # Optional third-party checkout used by redvenom.sh
-XSSStrike/
+XSStrike/
 
 # Local secrets and environment files
 .env
 .env.*
 .openrouter_key
-*.ovpn
+ʮovpn
 
 # Logs and editor/OS noise
 *.log

@@ -25,11 +25,19 @@ class VerifyRunManifestTests(unittest.TestCase):
             manifest = {"schema_version": 1, "artifacts": [record("finding.txt", content)]}
             self.assertEqual(verify_manifest(manifest, root), [])
 
-    def test_modified_artifact_is_reported(self) -> None:
+    def test_same_size_modified_artifact_fails_digest_check(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "finding.txt").write_bytes(b"changed")
+            (root / "finding.txt").write_bytes(b"tampered")
             manifest = {"schema_version": 1, "artifacts": [record("finding.txt", b"original")]}
+            errors = verify_manifest(manifest, root)
+        self.assertTrue(any("SHA-256 mismatch" in error for error in errors))
+
+    def test_size_mismatch_is_reported(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "finding.txt").write_bytes(b"short")
+            manifest = {"schema_version": 1, "artifacts": [record("finding.txt", b"longer")]}
             errors = verify_manifest(manifest, root)
         self.assertTrue(any("size mismatch" in error for error in errors))
 
@@ -54,28 +62,41 @@ class VerifyRunManifestTests(unittest.TestCase):
         self.assertEqual(len(errors), 2)
         self.assertTrue(all("safe relative path" in error for error in errors))
 
-    def test_invalid_schema_and_duplicate_paths_are_rejected(self) -> None:
+    def test_invalid_schema_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            errors = verify_manifest({"schema_version": 2, "artifacts": []}, Path(directory))
+        self.assertIn("unsupported or missing manifest schema_version", errors)
+
+    def test_duplicate_artifact_paths_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            content = b"same"
+            (root / "a.txt").write_bytes(content)
+            entry = record("a.txt", content)
+            errors = verify_manifest({"schema_version": 1, "artifacts": [entry, entry.copy()]}, root)
+        self.assertTrue(any("duplicate artifact path" in error for error in errors))
+
+    def test_malformed_digest_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "a.txt").write_bytes(b"a")
-            valid = record("a.txt", b"a")
-            manifest = {"schema_version": 2, "artifacts": [valid, valid.copy()]}
-            errors = verify_manifest(manifest, root)
-        self.assertIn("unsupported or missing manifest schema_version", errors)
+            entry = record("a.txt", b"a")
+            entry["sha256"] = "not-a-digest"
+            errors = verify_manifest({"schema_version": 1, "artifacts": [entry]}, root)
+        self.assertTrue(any("sha256 must be" in error for error in errors))
 
     def test_symlink_artifact_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            outside = root.parent / (root.name + "-outside")
-            outside.write_text("secret", encoding="utf-8")
+            target = root / "target.txt"
+            target.write_text("secret", encoding="utf-8")
             link = root / "linked.txt"
             try:
-                link.symlink_to(outside)
+                link.symlink_to(target)
             except (OSError, NotImplementedError):
                 self.skipTest("symlinks are not available on this platform")
             manifest = {"schema_version": 1, "artifacts": [record("linked.txt", b"secret")]}
             errors = verify_manifest(manifest, root)
-            outside.unlink(missing_ok=True)
         self.assertTrue(any("symbolic link" in error for error in errors))
 
 

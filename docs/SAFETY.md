@@ -20,7 +20,7 @@ The following observations are based on the checked-in `redvenom.sh` and are not
 - **Concurrent requests:** several stages run jobs in the background. The script does not expose an operator-configurable global rate limit or a reliable engagement-wide request budget.
 - **Prior output deletion:** at startup it runs `rm -rf recon_venom/*`. Existing files inside that directory are deleted. Back up any results you need before rerunning.
 - **Generated payload files:** it writes files under `payloads/`, replacing files with matching names.
-- **Broad VPN cleanup:** when the VPN option is enabled, it starts OpenVPN using `~/vpn-config.ovon` and later runs `sudo killall openvpn`. This can stop unrelated OpenVPN processes on the same machine. Avoid the VPN option until this behavior is redesigned.
+- **Broad VPN cleanup:** when the VPN option is enabled, it starts OpenVPN using `~/vpn-config.ovpn` and later runs `sudo killall openvpn`. This can stop unrelated OpenVPN processes on the same machine. Avoid the VPN option until this behavior is redesigned.
 - **Heuristic response matching:** built-in checks look for simple response strings. These checks can produce false positives and false negatives; they do not prove exploitability or impact.
 - **External AI processing:** the optional OpenRouter features send prompts and selected local scan-output excerpts to an external API. Review what data is included and whether disclosure is authorized.
 

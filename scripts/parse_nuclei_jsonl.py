@@ -17,7 +17,14 @@ def clean_cell(value: Any, fallback: str) -> str:
         text = json.dumps(value, ensure_ascii=True, sort_keys=True)
     else:
         text = str(value)
-    return " ".join(text.replace("\t", " ").replace("\r", " ").replace("\n", " ").split())
+    text = " ".join(text.replace("\t", " ").replace("\r", " ").replace("\n", " ").split())
+
+    # TSV files are commonly opened in spreadsheet applications. Prefix formula
+    # starters after leading whitespace so untrusted scanner output stays text.
+    first_visible = text.lstrip(" \t\r\n\v\f")
+    if first_visible.startswith(("=", "+", "-", "@")):
+        text = "'" + text
+    return text
 
 
 def candidate_row(record: Any) -> tuple[str, str, str, str] | None:

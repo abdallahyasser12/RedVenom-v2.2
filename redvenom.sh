@@ -134,7 +134,7 @@ summarize_results() {
     FUZZ_LOG=$(grep -E '\\[XSS\\]|\\[SQLi\\]|\\[LFI\\]|\\[JSONi\\]' "${RUN_DIR}/fuzzing_log.txt" 2>/dev/null | head -c 3000)
     NUCLEI=$(head -c 3000 "${RUN_DIR}/confirmed/nuclei/confirmed_nuclei.txt" 2>/dev/null)
 
-    PROMPT="Summarize and prioritize these exploratory security scan observations. Treat scanner alerts as leads that require human verification. Do not claim exploitability unless supported by the supplied evidence.\\n\\n[XSStrike]:\\n$XSSTRIKE_SUMMARY\\n\\n[SQLMap]:\\n$SQLMAP_SUMMARY\\n\\n[Fuzzing]:\\n$FUZZ_LOG\\n\\n[Nuclei]:\\n$NUCLEI"
+    PROMPT=$(printf 'Summarize and prioritize these exploratory security scan observations. Treat scanner alerts as leads that require human verification. Do not claim exploitability unless supported by the supplied evidence.\n\n[XSStrike]:\n%s\n\n[SQLMap]:\n%s\n\n[Fuzzing]:\n%s\n\n[Nuclei]:\n%s' "$XSSTRIKE_SUMMARY" "$SQLMAP_SUMMARY" "$FUZZ_LOG" "$NUCLEI")
 
     if ! RESPONSE=$(openrouter_chat_completion "$API_KEY" "You are a careful application-security reviewer. Clearly separate observations from confirmed findings and identify missing evidence." "$PROMPT"); then
         echo -e "${RED}[-] OpenRouter request failed or timed out. No report was written.${NC}"
@@ -147,8 +147,8 @@ summarize_results() {
         return 1
     fi
 
-    echo -e "\\n${GREEN}[+] AI Summary Report:${NC}"
-    printf '%s\\n' "$SUMMARY"
+    printf "\n%s\n" "${GREEN}[+] AI Summary Report:${NC}"
+    printf '%s\n' "$SUMMARY"
 
     printf '%s\\n' "$SUMMARY" > "${RUN_DIR}/ai_report.txt"
     echo -e "${CYAN}[✔] Saved to ${RUN_DIR}/ai_report.txt${NC}"

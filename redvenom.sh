@@ -157,7 +157,7 @@ summarize_results() {
     XSSTRIKE_SUMMARY=$(head -c 3000 "${RUN_DIR}/xsstrike_results.txt" 2>/dev/null)
     SQLMAP_SUMMARY=$(find "${RUN_DIR}/sqlmap_results" -name "*.csv" -exec head -c 3000 {} + 2>/dev/null)
     FUZZ_LOG=$(grep -E '\[XSS\]|\[SQLi\]|\[LFI\]|\[JSONi\]' "${RUN_DIR}/fuzzing_log.txt" 2>/dev/null | head -c 3000)
-    NUCLEI=$(head -c 3000 "${RUN_DIR}/confirmed/nuclei/confirmed_nuclei.txt" 2>/dev/null)
+    NUCLEI=$(head -c 3000 "${RUN_DIR}/candidates/nuclei/nuclei_candidates.txt" 2>/dev/null)
 
     PROMPT=$(printf 'Summarize and prioritize these exploratory security scan observations. Treat scanner alerts as leads that require human verification. Do not claim exploitability unless supported by the supplied evidence.\n\n[XSStrike]:\n%s\n\n[SQLMap]:\n%s\n\n[Fuzzing]:\n%s\n\n[Nuclei]:\n%s' "$XSSTRIKE_SUMMARY" "$SQLMAP_SUMMARY" "$FUZZ_LOG" "$NUCLEI")
 
@@ -274,7 +274,7 @@ ARJUN_CMD=$(command -v arjun)
 CURL_CMD=$(command -v curl)
 
 echo -e "${CYAN}[+] Preparing isolated run directory...${NC}"
-mkdir -p "$RUN_DIR" "$PAYLOAD_DIR" "${RUN_DIR}/js" "${RUN_DIR}/params" "${RUN_DIR}/confirmed" "${RUN_DIR}/nuclei_results"
+mkdir -p "$RUN_DIR" "$PAYLOAD_DIR" "${RUN_DIR}/js" "${RUN_DIR}/params" "${RUN_DIR}/candidates" "${RUN_DIR}/nuclei_results"
 
 if [[ -n "$SUBFINDER_CMD" ]]; then
     echo -e "${CYAN}[*] Running Subfinder...${NC}"
@@ -423,7 +423,7 @@ manage_xs_jobs() {
 
 > ${RUN_DIR}/xsstrike_raw.txt
 > ${RUN_DIR}/xsstrike_results_clean.txt
-> ${RUN_DIR}/xsstrike_vulns.txt
+> ${RUN_DIR}/xsstrike_candidates.txt
 
 while read -r url; do
     [[ -z "$url" ]] && continue
@@ -437,9 +437,9 @@ while read -r url; do
             PAYLOAD=$(grep -i 'Payload:' "$XS_TEMP" | head -n 1 | cut -d':' -f2- | xargs)
             [[ -z "$PAYLOAD" ]] && PAYLOAD=$(grep -i 'Injection successful' "$XS_TEMP" | head -n 1 || echo "Generic XSS")
 
-            echo "$url [VULNERABLE] → $PAYLOAD" | tee -a ${RUN_DIR}/xsstrike_results_clean.txt ${RUN_DIR}/xsstrike_vulns.txt
+            echo "$url [CANDIDATE - VERIFY] → $PAYLOAD" | tee -a ${RUN_DIR}/xsstrike_results_clean.txt ${RUN_DIR}/xsstrike_candidates.txt
         else
-            echo "$url [Not Vulnerable]" >> ${RUN_DIR}/xsstrike_results_clean.txt
+            echo "$url [No candidate matched - NOT A CLEAN BILL OF HEALTH]" >> ${RUN_DIR}/xsstrike_results_clean.txt
         fi
 
         rm -f "$XS_TEMP"
@@ -449,7 +449,7 @@ done < ${RUN_DIR}/all_cleaned_urls.txt
 wait
 echo -e "${GREEN}[+] Cleaned XSStrike results saved in:${NC}"
 echo -e "${CYAN}    - ${RUN_DIR}/xsstrike_results_clean.txt"
-echo -e "${CYAN}    - ${RUN_DIR}/xsstrike_vulns.txt"
+echo -e "${CYAN}    - ${RUN_DIR}/xsstrike_candidates.txt"
 echo -e "${CYAN}    - ${RUN_DIR}/xsstrike_raw.txt${NC}"
 
 echo -e "${GREEN}[+] Scanning phase complete.${NC}"
@@ -457,8 +457,8 @@ echo -e "${GREEN}[+] Scanning phase complete.${NC}"
 
 
 # PHASE 4 — Fuzzing (XSS, SQLi, LFI, Redirect, SSTI, RCE, JSONi, SSRF)
-echo -e "${CYAN}[*] Preparing payload files and confirmed folder...${NC}"
-mkdir -p "$PAYLOAD_DIR" "${RUN_DIR}/confirmed"
+echo -e "${CYAN}[*] Preparing payload files and candidate folder...${NC}"
+mkdir -p "$PAYLOAD_DIR" "${RUN_DIR}/candidates"
 
 # Payload sets
 
@@ -532,7 +532,7 @@ cat > ${PAYLOAD_DIR}/json.txt << 'EOF'
 {"cmd":"__import__('os').system('id')"}
 EOF
 
-# Confirmed detection logic
+# Heuristic candidate classification (human verification required)
 detect_vuln() {
     local url="$1"
     local payload="$2"
@@ -542,31 +542,31 @@ detect_vuln() {
     case "$type" in
         "XSS")
             if echo "$response" | grep -qE '<script>alert\(1\)</script>|<svg/onload=alert\(1\)>|onerror=alert'; then
-                echo -e "${GREEN}[VULNERABLE][XSS] $url${NC}" | tee -a ${RUN_DIR}/confirmed/xss.txt
+                echo -e "${GREEN}[CANDIDATE - VERIFY][XSS] $url${NC}" | tee -a ${RUN_DIR}/candidates/xss.txt
             fi ;;
         "SQLi")
             if echo "$response" | grep -qE 'SQL syntax|mysql_fetch|syntax error|unterminated query'; then
-                echo -e "${GREEN}[VULNERABLE][SQLi] $url${NC}" | tee -a ${RUN_DIR}/confirmed/sqli.txt
+                echo -e "${GREEN}[CANDIDATE - VERIFY][SQLi] $url${NC}" | tee -a ${RUN_DIR}/candidates/sqli.txt
             fi ;;
         "LFI")
             if echo "$response" | grep -qE 'root:.*:0:0|boot.ini'; then
-                echo -e "${GREEN}[VULNERABLE][LFI] $url${NC}" | tee -a ${RUN_DIR}/confirmed/lfi.txt
+                echo -e "${GREEN}[CANDIDATE - VERIFY][LFI] $url${NC}" | tee -a ${RUN_DIR}/candidates/lfi.txt
             fi ;;
         "Redirect")
             if echo "$response" | grep -qi "Location: http://evil.com"; then
-                echo -e "${GREEN}[VULNERABLE][Redirect] $url${NC}" | tee -a ${RUN_DIR}/confirmed/redirect.txt
+                echo -e "${GREEN}[CANDIDATE - VERIFY][Redirect] $url${NC}" | tee -a ${RUN_DIR}/candidates/redirect.txt
             fi ;;
         "RCE")
             if echo "$response" | grep -qE 'uid=|root|Administrator'; then
-                echo -e "${GREEN}[VULNERABLE][RCE] $url${NC}" | tee -a ${RUN_DIR}/confirmed/rce.txt
+                echo -e "${GREEN}[CANDIDATE - VERIFY][RCE] $url${NC}" | tee -a ${RUN_DIR}/candidates/rce.txt
             fi ;;
         "SSTI")
             if echo "$response" | grep -qE '49|1787569'; then
-                echo -e "${GREEN}[VULNERABLE][SSTI] $url${NC}" | tee -a ${RUN_DIR}/confirmed/ssti.txt
+                echo -e "${GREEN}[CANDIDATE - VERIFY][SSTI] $url${NC}" | tee -a ${RUN_DIR}/candidates/ssti.txt
             fi ;;
         "JSON")
             if echo "$response" | grep -qE 'alert\(1\)|root:|uid=|error'; then
-                echo -e "${GREEN}[VULNERABLE][JSONi] $url -- Payload: $payload${NC}" | tee -a ${RUN_DIR}/confirmed/jsoni.txt
+                echo -e "${GREEN}[CANDIDATE - VERIFY][JSONi] $url -- Payload: $payload${NC}" | tee -a ${RUN_DIR}/candidates/jsoni.txt
             fi ;;
     esac
 }
@@ -642,11 +642,11 @@ while read -r url; do
 done < ${RUN_DIR}/all_cleaned_urls.txt
 
 wait
-echo -e "${GREEN}[✔] Fuzzing phase complete. Confirmed results saved in: ${RUN_DIR}/confirmed/${NC}"
+echo -e "${GREEN}[✔] Fuzzing phase complete. Candidate observations saved in: ${RUN_DIR}/candidates/${NC}"
 
 # PHASE 5 — Passive/Active Scanning with Nuclei (Parallel)
 echo -e "${CYAN}[*] Launching Nuclei scanning...${NC}"
-mkdir -p "${RUN_DIR}/nuclei_results" "${RUN_DIR}/confirmed/nuclei"
+mkdir -p "${RUN_DIR}/nuclei_results" "${RUN_DIR}/candidates/nuclei"
 
 if [[ -n "$NUCLEI_CMD" ]]; then
     echo -e "${CYAN}[*] Running Nuclei passive & active scan...${NC}"
@@ -659,14 +659,14 @@ else
 fi
 
 
-# Parse and extract confirmed vulnerabilities with severity ratings
+# Parse Nuclei JSONL observations for human review
 {
     sleep 10  # Give nuclei time to create output
-    echo -e "${CYAN}[*] Extracting and rating confirmed Nuclei findings...${NC}"
+    echo -e "${CYAN}[*] Extracting Nuclei candidate observations...${NC}"
     if [[ -f ${RUN_DIR}/nuclei_results/raw.txt ]]; then
         jq -r '.templateID + " | " + .info.name + " | " + .info.severity + " | " + .matched_at' ${RUN_DIR}/nuclei_results/raw.txt \
-        | tee ${RUN_DIR}/confirmed/nuclei/confirmed_nuclei.txt > /dev/null
-        echo -e "${GREEN}[+] Nuclei confirmed findings logged at ${RUN_DIR}/confirmed/nuclei/confirmed_nuclei.txt${NC}"
+        | tee ${RUN_DIR}/candidates/nuclei/nuclei_candidates.txt > /dev/null
+        echo -e "${GREEN}[+] Nuclei candidate observations logged at ${RUN_DIR}/candidates/nuclei/nuclei_candidates.txt${NC}"
     else
         echo -e "${RED}[-] Nuclei raw output not found. Skipping parsing.${NC}"
     fi

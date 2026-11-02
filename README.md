@@ -60,7 +60,7 @@ chmod +x redvenom.sh
 ./redvenom.sh
 ```
 
-The current interface asks for a target domain and a VPN choice, then proceeds through discovery, parameter collection, active scanning, fuzzing, Nuclei, and an optional AI menu. It does not provide a reliable dry run or a complete per-request scope enforcement mechanism.
+The current interface asks for a target hostname and a VPN choice, then proceeds through discovery, parameter collection, active scanning, fuzzing, Nuclei, and an optional AI menu. Heuristic matches are recorded as candidate observations for human verification; they are not confirmed vulnerabilities. The workflow still does not provide a reliable dry run or a network-level scope boundary.
 
 ## Output and local state
 

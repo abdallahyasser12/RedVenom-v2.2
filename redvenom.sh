@@ -157,7 +157,7 @@ summarize_results() {
     XSSTRIKE_SUMMARY=$(head -c 3000 "${RUN_DIR}/xsstrike_results.txt" 2>/dev/null)
     SQLMAP_SUMMARY=$(find "${RUN_DIR}/sqlmap_results" -name "*.csv" -exec head -c 3000 {} + 2>/dev/null)
     FUZZ_LOG=$(grep -E '\[XSS\]|\[SQLi\]|\[LFI\]|\[JSONi\]' "${RUN_DIR}/fuzzing_log.txt" 2>/dev/null | head -c 3000)
-    NUCLEI=$(head -c 3000 "${RUN_DIR}/candidates/nuclei/nuclei_candidates.txt" 2>/dev/null)
+    NUCLEI=$(head -c 3000 "${RUN_DIR}/candidates/nuclei/nuclei_candidates.tsv" 2>/dev/null)
 
     PROMPT=$(printf 'Summarize and prioritize these exploratory security scan observations. Treat scanner alerts as leads that require human verification. Do not claim exploitability unless supported by the supplied evidence.\n\n[XSStrike]:\n%s\n\n[SQLMap]:\n%s\n\n[Fuzzing]:\n%s\n\n[Nuclei]:\n%s' "$XSSTRIKE_SUMMARY" "$SQLMAP_SUMMARY" "$FUZZ_LOG" "$NUCLEI")
 
@@ -644,38 +644,40 @@ done < ${RUN_DIR}/all_cleaned_urls.txt
 wait
 echo -e "${GREEN}[✔] Fuzzing phase complete. Candidate observations saved in: ${RUN_DIR}/candidates/${NC}"
 
-# PHASE 5 — Passive/Active Scanning with Nuclei (Parallel)
+# PHASE 5 — Nuclei scanning and candidate extraction
 echo -e "${CYAN}[*] Launching Nuclei scanning...${NC}"
 mkdir -p "${RUN_DIR}/nuclei_results" "${RUN_DIR}/candidates/nuclei"
 
 if [[ -n "$NUCLEI_CMD" ]]; then
-    echo -e "${CYAN}[*] Running Nuclei passive & active scan...${NC}"
-    $NUCLEI_CMD -l ${RUN_DIR}/all_cleaned_urls.txt -o ${RUN_DIR}/nuclei_results/raw.txt -json | tee ${RUN_DIR}/nuclei_results/live_output.txt &
+    echo -e "${CYAN}[*] Running Nuclei scan...${NC}"
+    (
+        set -o pipefail
+        "$NUCLEI_CMD" -l "${RUN_DIR}/all_cleaned_urls.txt" -o "${RUN_DIR}/nuclei_results/raw.txt" -json \
+            | tee "${RUN_DIR}/nuclei_results/live_output.txt"
+    ) &
     NUCLEI_PID=$!
     echo -e "${CYAN}[~] Nuclei scan running in background... this may take a while.${NC}"
-else
-    echo -e "${RED}[-] Nuclei not found. Skipping scan.${NC}"
-    NUCLEI_PID=""
-fi
 
-
-# Parse Nuclei JSONL observations for human review
-{
-    sleep 10  # Give nuclei time to create output
-    echo -e "${CYAN}[*] Extracting Nuclei candidate observations...${NC}"
-    if [[ -f ${RUN_DIR}/nuclei_results/raw.txt ]]; then
-        jq -r '.templateID + " | " + .info.name + " | " + .info.severity + " | " + .matched_at' ${RUN_DIR}/nuclei_results/raw.txt \
-        | tee ${RUN_DIR}/candidates/nuclei/nuclei_candidates.txt > /dev/null
-        echo -e "${GREEN}[+] Nuclei candidate observations logged at ${RUN_DIR}/candidates/nuclei/nuclei_candidates.txt${NC}"
-    else
-        echo -e "${RED}[-] Nuclei raw output not found. Skipping parsing.${NC}"
+    # Wait for the scanner pipeline to finish before reading its JSONL output.
+    if ! wait "$NUCLEI_PID"; then
+        echo -e "${YELLOW}[!] Nuclei exited with an error; parsing any output it produced.${NC}"
     fi
-} &
+    NUCLEI_PID=""
 
-# Wait for all background jobs to finish
-[[ -n "$NUCLEI_PID" ]] && wait $NUCLEI_PID
-
-wait
+    if [[ -s "${RUN_DIR}/nuclei_results/raw.txt" ]]; then
+        if python3 scripts/parse_nuclei_jsonl.py \
+            --input "${RUN_DIR}/nuclei_results/raw.txt" \
+            --output "${RUN_DIR}/candidates/nuclei/nuclei_candidates.tsv"; then
+            echo -e "${GREEN}[+] Nuclei candidate observations saved to ${RUN_DIR}/candidates/nuclei/nuclei_candidates.tsv${NC}"
+        else
+            echo -e "${YELLOW}[!] Could not parse Nuclei output; raw JSONL was preserved.${NC}"
+        fi
+    else
+        echo -e "${CYAN}[*] Nuclei produced no raw JSONL output to parse.${NC}"
+    fi
+else
+    echo -e "${YELLOW}[!] Nuclei not found. Skipping this optional stage.${NC}"
+fi
 
 
 # Offer AI Assistant or Summary

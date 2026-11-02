@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Scan artifacts may contain sensitive target data; keep newly created files private.
+umask 077
+
 # RedVenom v2.2 — Aggressive Web Recon & Attack Automation Tool
 # Created by: Abdallah Yasser
 

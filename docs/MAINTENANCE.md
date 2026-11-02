@@ -36,6 +36,10 @@ Review ShellCheck findings rather than blindly auto-fixing them. The script uses
 
 The documentation checker validates required documentation files, balanced Markdown code fences, and local Markdown links. It does not run the scanner, install third-party dependencies, validate remote URLs, or prove that instructions work on every distribution.
 
+## Output permissions
+
+The interactive shell sets `umask 077` before creating run artifacts. On POSIX systems, newly created regular files and directories normally default to owner-only access (`0600` and `0700`, respectively). This is an inherited default, not a permissions audit: existing paths are not changed, and external tools can choose different modes. Check permissions before archiving or sharing output.
+
 ## Current gaps for future engineering work
 
 1. Scope enforcement: no canonical scope file or per-request host allowlist is enforced across discovered URLs.

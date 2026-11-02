@@ -28,6 +28,7 @@ The following observations are based on the checked-in `redvenom.sh` and are not
 
 ## Safe operating boundaries
 
+- **Private file creation:** the shell sets `umask 077` before creating run artifacts. Newly created files and directories therefore default to owner-only permissions on normal POSIX tools. This does not retroactively change existing paths, and a third-party tool may explicitly override inherited permissions; review the resulting run directory before sharing it.
 - Run from a dedicated, disposable working copy and a non-privileged user account whenever possible.
 - Do not use `sudo` to run RedVenom itself. The script's optional VPN path may invoke `sudo` internally.
 - Do not use real customer credentials, session cookies, production data, or secrets in test workflows.

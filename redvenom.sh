@@ -69,39 +69,54 @@ version_gt() {
 
 
 
+openrouter_chat_completion() {
+    local api_key="$1"
+    local system_message="$2"
+    local user_message="$3"
+    local request_body
+
+    request_body=$(jq -n \
+        --arg model "mistralai/mistral-7b-instruct" \
+        --arg system "$system_message" \
+        --arg user "$user_message" \
+        '{
+            model: $model,
+            messages: [
+                {role: "system", content: $system},
+                {role: "user", content: $user}
+            ]
+        }') || return 1
+
+    "$CURL_CMD" --fail --silent --show-error \
+        --connect-timeout 10 --max-time 60 \
+        -H "Authorization: Bearer $api_key" \
+        -H "Content-Type: application/json" \
+        --data-binary "$request_body" \
+        https://openrouter.ai/api/v1/chat/completions
+}
+
 ask_ai() {
-    API_KEY=$(cat ~/.openrouter_key 2>/dev/null)
+    API_KEY=$(cat "$HOME/.openrouter_key" 2>/dev/null)
     if [[ -z "$API_KEY" ]]; then
-        echo -e "${RED}[-] No OpenRouter API key found in ~/.openrouter_key${NC}"
+        echo -e "${RED}[-] No OpenRouter API key found in $HOME/.openrouter_key${NC}"
         return
     fi
 
     echo -e "${CYAN}[*] Starting RedVenom AI session. Type 'exit' to quit.${NC}"
 
     while true; do
-        read -p "[AI] ➤ " USER_QUERY
-        [[ "$USER_QUERY" == "exit" ]] && echo -e "${CYAN}[*] Ending AI session.${NC}" && break
+        read -r -p "[AI] ➤ " USER_QUERY
+        [[ "$USER_QUERY" == "exit" ]] && echo -e "${CYAN}[*] Ending RedVenom AI session.${NC}" && break
         [[ -z "$USER_QUERY" ]] && continue
 
-        RESPONSE=$(curl -s https://openrouter.ai/api/v1/chat/completions \
-            -H "Authorization: Bearer $API_KEY" \
-            -H "Content-Type: application/json" \
-            -d "$(jq -n \
-                --arg model "mistralai/mistral-7b-instruct" \
-                --arg query "$USER_QUERY" \
-                '{
-                    model: $model,
-                    messages: [
-                        { "role": "system", "content": "You are RedVenom AI, a helpful hacking assistant." },
-                        { "role": "user", "content": $query }
-                    ]
-                }')"
-        )
+        if ! RESPONSE=$(openrouter_chat_completion "$API_KEY" "You are RedVenom AI, a helpful hacking assistant." "$USER_QUERY"); then
+            echo -e "${RED}[-] OpenRouter request failed or timed out. No report was written.${NC}"
+            continue
+        fi
 
-        MESSAGE=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // empty')
+        MESSAGE=$(printf '%s' "$RESPONSE" | jq -r '.choices[0].message.content // empty')
         if [[ -z "$MESSAGE" ]]; then
-            echo -e "${RED}[-] No response. Raw output:${NC}"
-            echo "$RESPONSE" | jq
+            echo -e "${RED}[-] OpenRouter returned an unexpected response shape.${NC}"
         else
             echo -e "${GREEN}[AI]:${NC} $MESSAGE"
         fi
@@ -111,37 +126,34 @@ ask_ai() {
 summarize_results() {
     echo -e "${CYAN}[*] Generating AI summary from scan results...${NC}"
 
-    API_KEY=$(cat ~/.openrouter_key 2>/dev/null)
+    API_KEY=$(cat "$HOME/.openrouter_key" 2>/dev/null)
     [[ -z "$API_KEY" ]] && echo -e "${RED}[-] No OpenRouter API key found.${NC}" && return
 
-    XSSTRIKE_SUMMARY=$(head -c 3000 ${RUN_DIR}/xsstrike_results.txt 2>/dev/null)
-    SQLMAP_SUMMARY=$(find ${RUN_DIR}/sqlmap_results -name "*.csv" -exec head -c 3000 {} + 2>/dev/null)
-    FUZZ_LOG=$(grep -E '\[XSS\]|\[SQLi\]|\[LFI\]|\[JSONi\]' ${RUN_DIR}/fuzzing_log.txt | head -c 3000)
-    NUCLEI=$(head -c 3000 ${RUN_DIR}/confirmed/nuclei/confirmed_nuclei.txt 2>/dev/null)
+    XSSTRIKE_SUMMARY=$(head -c 3000 "${RUN_DIR}/xsstrike_results.txt" 2>/dev/null)
+    SQLMAP_SUMMARY=$(find "${RUN_DIR}/sqlmap_results" -name "*.csv" -exec head -c 3000 {} + 2>/dev/null)
+    FUZZ_LOG=$(grep -E '\\[XSS\\]|\\[SQLi\\]|\\[LFI\\]|\\[JSONi\\]' "${RUN_DIR}/fuzzing_log.txt" 2>/dev/null | head -c 3000)
+    NUCLEI=$(head -c 3000 "${RUN_DIR}/confirmed/nuclei/confirmed_nuclei.txt" 2>/dev/null)
 
-    PROMPT="You are a cybersecurity expert. Summarize and prioritize the following findings from a Red Team scan:\n\n[XSStrike]:\n$XSSTRIKE_SUMMARY\n\n[SQLMap]:\n$SQLMAP_SUMMARY\n\n[Fuzzing]:\n$FUZZ_LOG\n\n[Nuclei]:\n$NUCLEI"
+    PROMPT="Summarize and prioritize these exploratory security scan observations. Treat scanner alerts as leads that require human verification. Do not claim exploitability unless supported by the supplied evidence.\\n\\n[XSStrike]:\\n$XSSTRIKE_SUMMARY\\n\\n[SQLMap]:\\n$SQLMAP_SUMMARY\\n\\n[Fuzzing]:\\n$FUZZ_LOG\\n\\n[Nuclei]:\\n$NUCLEI"
 
-    RESPONSE=$(curl -s https://openrouter.ai/api/v1/chat/completions \
-        -H "Authorization: Bearer $API_KEY" \
-        -H "Content-Type: application/json" \
-        -d @- <<EOF
-{
-  "model": "mistralai/mistral-7b-instruct",
-  "messages": [
-    { "role": "system", "content": "You are a cybersecurity expert writing a professional bug bounty scan report with severity classification and remediation suggestions." },
-    { "role": "user", "content": "$PROMPT" }
-  ]
-}
-EOF
-    )
+    if ! RESPONSE=$(openrouter_chat_completion "$API_KEY" "You are a careful application-security reviewer. Clearly separate observations from confirmed findings and identify missing evidence." "$PROMPT"); then
+        echo -e "${RED}[-] OpenRouter request failed or timed out. No report was written.${NC}"
+        return 1
+    fi
 
-    SUMMARY=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // empty')
-    echo -e "\n${GREEN}[+] AI Summary Report:${NC}"
-    echo "$SUMMARY"
+    SUMMARY=$(printf '%s' "$RESPONSE" | jq -r '.choices[0].message.content // empty')
+    if [[ -z "$SUMMARY" ]]; then
+        echo -e "${RED}[-] OpenRouter returned no summary content. No report was written.${NC}"
+        return 1
+    fi
 
-    echo "$SUMMARY" > ${RUN_DIR}/ai_report.txt
+    echo -e "\\n${GREEN}[+] AI Summary Report:${NC}"
+    printf '%s\\n' "$SUMMARY"
+
+    printf '%s\\n' "$SUMMARY" > "${RUN_DIR}/ai_report.txt"
     echo -e "${CYAN}[✔] Saved to ${RUN_DIR}/ai_report.txt${NC}"
 }
+
 
 
 

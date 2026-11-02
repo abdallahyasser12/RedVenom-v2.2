@@ -15,14 +15,14 @@ class DependencyPreflightTests(unittest.TestCase):
             (root / "XSStrike").mkdir()
             (root / "XSStrike" / "xsstrike.py").write_text("# fixture\n")
             with patch("shutil.which", side_effect=lambda name: "/usr/bin/" + name):
-                missing, optional = check_dependencies(cwd=root)
+                missing, optional = check_dependencies(which=__import__('shutil').which, cwd=root)
         self.assertEqual(missing, [])
         self.assertEqual(optional, [])
 
     def test_missing_required_commands_are_reported(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             with patch("shutil.which", return_value=None):
-                missing, optional = check_dependencies(cwd=Path(directory))
+                missing, optional = check_dependencies(which=__import__('shutil').which, cwd=Path(directory))
         self.assertEqual(missing, list(REQUIRED_COMMANDS) + [
             "xsstrike (command or XSStrike/xsstrike.py)"
         ])

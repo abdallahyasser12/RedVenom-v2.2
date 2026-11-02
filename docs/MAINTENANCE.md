@@ -11,11 +11,19 @@ This document records the current maintenance practices and known implementation
 
 ## Local checks
 
-Run these from the repository root:
+Run the complete offline check from any working directory:
+
+```bash
+bash scripts/test.sh
+```
+
+The runner checks Bash syntax, Python compilation, Markdown fences/local links, and the standard-library unit/contract suite. It does not execute network scans or install external scanner dependencies. Individual checks remain available from the repository root:
 
 ```bash
 bash -n redvenom.sh
+python3 -m compileall -q scripts tests
 python3 scripts/check_docs.py
+python3 -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
 If ShellCheck is installed, it can provide an additional static review:

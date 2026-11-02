@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from scripts.parse_nuclei_jsonl import candidate_row, parse_jsonl
+from scripts.parse_nuclei_jsonl import candidate_row, clean_cell, parse_jsonl
 
 
 class NucleiJsonlParserTests(unittest.TestCase):
@@ -30,6 +30,22 @@ class NucleiJsonlParserTests(unittest.TestCase):
             "host": "https://host.example.test/\r",
         })
         self.assertEqual(row, ("t 1", "line name", "medium", "https://host.example.test/"))
+
+    def test_spreadsheet_formula_prefixes_are_exported_as_text(self) -> None:
+        examples = (
+            "=HYPERLINK(\"https://example.invalid\")",
+            "  +1+1",
+            "-1+2",
+            "@SUM(A1:A2)",
+            "\t=cmd|'/C calc'!A0",
+        )
+        for value in examples:
+            with self.subTest(value=value):
+                self.assertTrue(clean_cell(value, "fallback").startswith("'"))
+
+    def test_plain_cells_are_not_modified(self) -> None:
+        self.assertEqual(clean_cell("severity: low", "fallback"), "severity: low")
+        self.assertEqual(clean_cell("0.0", "fallback"), "0.0")
 
     def test_malformed_and_non_object_records_are_skipped(self) -> None:
         lines = [

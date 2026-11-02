@@ -377,7 +377,7 @@ fi
 echo -e "${CYAN}[*] Extracting endpoints from JS files (filtered)...${NC}"
 > ${RUN_DIR}/js/endpoints.txt
 while read -r jsurl; do
-    $CURL_CMD -sk "$jsurl" | grep -Eo '[a-zA-Z0-9_\/.-]+?\.(php|asp|aspx|jsp|json|cgi)' >> ${RUN_DIR}/js/endpoints.txt
+    "$CURL_CMD" -sS --connect-timeout 5 --max-time 15 "$jsurl" | grep -Eo '[a-zA-Z0-9_\/.-]+?\.(php|asp|aspx|jsp|json|cgi)' >> ${RUN_DIR}/js/endpoints.txt
 done < ${RUN_DIR}/js/js_files.txt
 sort -u ${RUN_DIR}/js/endpoints.txt -o ${RUN_DIR}/js/endpoints.txt
 
@@ -538,7 +538,7 @@ detect_vuln() {
     local url="$1"
     local payload="$2"
     local type="$3"
-    response=$($CURL_CMD -sk "$url" --max-time 10)
+    response=$("$CURL_CMD" -sS --connect-timeout 5 --max-time 10 "$url")
 
     case "$type" in
         "XSS")
@@ -619,7 +619,7 @@ while read -r url; do
         fuzzed=$(echo "$url" | sed -E "s|=[^&]*|$(printf '%s' "$payload" | sed 's/[|&/\]/\\&/g')|g")
 
         echo -e "[SSRF] $fuzzed" | tee -a ${RUN_DIR}/fuzzing_log.txt
-        $CURL_CMD -sk "$fuzzed" -o /dev/null & manage_jobs
+        "$CURL_CMD" -sS --connect-timeout 5 --max-time 10 "$fuzzed" -o /dev/null & manage_jobs
     done
 
     for payload in "${RCE_PAYLOADS[@]}"; do
@@ -636,7 +636,7 @@ while read -r url; do
 
     for payload in "${JSON_PAYLOADS[@]}"; do
         echo -e "[JSON] $url -- POST Payload: $payload" | tee -a ${RUN_DIR}/fuzzing_log.txt
-        response=$($CURL_CMD -sk -X POST -H "Content-Type: application/json" -d "$payload" "$url")
+        response=$("$CURL_CMD" -sS --connect-timeout 5 --max-time 10 -X POST -H "Content-Type: application/json" -d "$payload" "$url")
         detect_vuln "$url" "$payload" "JSON"
     done
 

@@ -131,7 +131,7 @@ summarize_results() {
 
     XSSTRIKE_SUMMARY=$(head -c 3000 "${RUN_DIR}/xsstrike_results.txt" 2>/dev/null)
     SQLMAP_SUMMARY=$(find "${RUN_DIR}/sqlmap_results" -name "*.csv" -exec head -c 3000 {} + 2>/dev/null)
-    FUZZ_LOG=$(grep -E '\\[XSS\\]|\\[SQLi\\]|\\[LFI\\]|\\[JSONi\\]' "${RUN_DIR}/fuzzing_log.txt" 2>/dev/null | head -c 3000)
+    FUZZ_LOG=$(grep -E '\[XSS\]|\[SQLi\]|\[LFI\]|\[JSONi\]' "${RUN_DIR}/fuzzing_log.txt" 2>/dev/null | head -c 3000)
     NUCLEI=$(head -c 3000 "${RUN_DIR}/confirmed/nuclei/confirmed_nuclei.txt" 2>/dev/null)
 
     PROMPT=$(printf 'Summarize and prioritize these exploratory security scan observations. Treat scanner alerts as leads that require human verification. Do not claim exploitability unless supported by the supplied evidence.\n\n[XSStrike]:\n%s\n\n[SQLMap]:\n%s\n\n[Fuzzing]:\n%s\n\n[Nuclei]:\n%s' "$XSSTRIKE_SUMMARY" "$SQLMAP_SUMMARY" "$FUZZ_LOG" "$NUCLEI")

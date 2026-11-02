@@ -36,7 +36,7 @@ The following observations are based on the checked-in `redvenom.sh` and are not
 
 ## Findings are leads, not proof
 
-A string match or scanner alert is an observation that requires human review. Confirm the behavior with a controlled reproduction, verify the affected identity and authorization boundary, assess impact, and document limitations before describing it as a vulnerability. A clean run is not evidence that an application is secure.
+A string match or scanner alert is a candidate observation, not a confirmed vulnerability. RedVenom labels heuristic matches as candidates for human review. Confirm the behavior with a controlled reproduction, verify the affected identity and authorization boundary, assess impact, and document limitations before describing it as a vulnerability. A clean run is not evidence that an application is secure.
 
 ## Known safety work still needed
 

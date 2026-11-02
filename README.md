@@ -1,210 +1,102 @@
-# 🐍 RedVenom v2.2 — Offensive Security Automation Framework
+# RedVenom v2.2
 
-RedVenom is a powerful **Bash-based offensive security automation tool** designed for **bug bounty hunters** and **penetration testers**.  
-It automates recon, vulnerability scanning, fuzzing, and AI-assisted reporting in a fast, parallelized workflow.
+**A Bash-based workflow for authorized web reconnaissance and security testing.**
 
----
+RedVenom combines established command-line tools for host discovery, historical URL collection, parameter discovery, vulnerability scanning, and result collection. It is intended for security practitioners working on assets they own or have explicit written permission to assess.
 
-## 👨‍💻 Created by
+> **Read before running:** RedVenom is an early-stage, interactive prototype—not a production-grade scanner or a safe passive-recon-only tool. The current script sends active test payloads, runs third-party scanners, deletes the previous `recon_venom/` output at startup, and has broad VPN cleanup behavior. Review [the safety notes](docs/SAFETY.md) before executing it.
 
-**Abdallah Yasser** — Bug Hunter | Red Team Enthusiast
+## What it currently does
 
----
+The checked-in `redvenom.sh` orchestrates these tools when they are installed and available:
 
-## 🚀 Features
+| Stage | Tooling | Purpose |
+| --- | --- | --- |
+| Passive discovery | Subfinder | Enumerate candidate subdomains from passive sources |
+| Historical URL collection | gau | Collect URLs known to public web archives |
+| HTTP probing | ProjectDiscovery httpx | Identify responding hosts from discovered subdomains |
+| Parameter discovery | ParamSpider, Arjun | Gather archived and candidate HTTP parameters |
+| Active checks | SQLMap, XSStrike | Run focused SQL injection and XSS testing against collected URLs |
+| Additional probes | Built-in Bash/curl routines | Send experimental payloads and look for response patterns |
+| Template scanning | Nuclei | Run templates against the collected URL list |
+| Optional AI assistance | OpenRouter API | Interactive Q&A and a text summary of selected output files |
 
-### 🔍 Automated Reconnaissance
+The presence of a tool in this table does not mean every stage is reliably guarded when that dependency is missing. See [installation and dependency notes](docs/INSTALLATION.md) and [known limitations](docs/MAINTENANCE.md).
 
-- 🌐 Subdomain enumeration with `subfinder`  
-- 🕸️ URL extraction using `gau`  
-- ⚡ Live host detection via `httpx`  
-- 🎯 Parameter discovery with `ParamSpider`
+## Requirements
 
-### 🛡️ Vulnerability Scanning
+- Linux or a Linux environment such as WSL2.
+- Bash 4 or newer.
+- Git, Go, Python 3, `curl`, `jq`, and standard command-line utilities.
+- The scanner tools listed in [Installation](docs/INSTALLATION.md) for a complete run.
 
-- 💉 SQL Injection detection with `SQLMap`  
-- 🧪 XSS detection with `XSStrike`
+RedVenom does not currently ship a dependency lockfile, installer, container image, automated integration-test suite, or built-in scope allowlist/dry-run mode. Install third-party tools separately and review their licenses and documentation.
 
-### 💥 Fuzzing Engine
+## Installation
 
-- Parallelized fuzzing with embedded payloads for:
-  - [XSS]
-  - [SQL Injection]
-  - [LFI]
-  - [RCE]
-  - [SSTI]
-  - [SSRF]
-  - [Open Redirect]
-  - [JSON Injection]
-
-✅ Fuzzing results are logged in detail to `fuzzing_log.txt`.
-
-### 🤖 AI Assistant (RedVenom AI)
-
-- Ask anything during recon or fuzzing
-- Auto-generates summary reports
-- Powered by **OpenRouter** (model: `mistralai/mistral-7b-instruct`)
-
-### 🌐 VPN Integration (Optional)
-
-- Automatically starts & disconnects VPN using `openvpn`
-
----
-
-## 🛠️ Installation
+Clone the repository and enter the actual directory name:
 
 ```bash
-git clone https://github.com/abdallahyasser12/RedVenom-v2.2
-cd RedVenom
+git clone https://github.com/abdallahyasser12/RedVenom-v2.2.git
+cd RedVenom-v2.2
+```
+
+Follow the step-by-step [installation guide](docs/INSTALLATION.md). Before any scan, perform the local syntax check:
+
+```bash
+bash -n redvenom.sh
+```
+
+A successful syntax check only confirms that Bash can parse the script; it does not validate scanner behavior, target scope, or safety.
+
+## Running
+
+**Do not run this against a domain just because it is publicly reachable.** First confirm that the exact domain and all discovered subdomains are explicitly in scope, that active scanning and fuzzing are permitted, and that the system owner has approved the expected request volume and test methods.
+
+After reviewing [Safety and operational risks](docs/SAFETY.md), start the interactive script from the repository root:
+
+```bash
 chmod +x redvenom.sh
 ./redvenom.sh
 ```
 
----
+The current interface asks for a target domain and a VPN choice, then proceeds through discovery, parameter collection, active scanning, fuzzing, Nuclei, and an optional AI menu. It does not provide a reliable dry run or a complete per-request scope enforcement mechanism.
 
-## 📦 Dependencies
+## Output and local state
 
-Ensure the following tools are installed and available in your `$PATH`:
+The script writes runtime data under `recon_venom/`, `confirmed/`, and `payloads/` (and creates a `results/` directory). It recreates payload files and removes the contents of `recon_venom/` when a run starts. Treat these directories as generated, potentially sensitive scan data. Do not commit them or upload them without the target owner's approval.
 
-- `subfinder`
-- `httpx`
-- `gau`
-- `paramspider`
-- `sqlmap`
-- `XSStrike`
-- `curl`, `jq`, `sed`, `grep`, `bash`
-- *(Optional)*: `openvpn`, `python3`
+The repository `.gitignore` excludes common generated outputs, local environments, and the optional `XSStrike/` checkout. It is not a substitute for checking `git status` before committing.
 
-### Quick install:
+## Optional OpenRouter integration
+
+The AI features are optional. The current script reads an API key from `~/.openrouter_key`:
 
 ```bash
-sudo apt install curl jq python3 -y
-go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
-go install github.com/projectdiscovery/httpx/cmd/httpx@latest
-go install github.com/lc/gau@latest
-pip3 install xsstrike paramspider
+umask 077
+read -r -s -p 'OpenRouter API key: ' OPENROUTER_API_KEY
+echo
+printf '%s' "$OPENROUTER_API_KEY" > "$HOME/.openrouter_key"
+unset OPENROUTER_API_KEY
+chmod 600 "$HOME/.openrouter_key"
 ```
 
----
+Do not paste keys into source files, command history, issue reports, or commits. Review the data sent to the provider before enabling AI summaries; the script includes excerpts from local scan output in its API request.
 
-## 🤖 AI Integration Setup
+## Documentation
 
-To enable RedVenom AI:
+- [Installation and dependency setup](docs/INSTALLATION.md)
+- [Safety, scope, and data handling](docs/SAFETY.md)
+- [Maintenance status and verification](docs/MAINTENANCE.md)
+- [Contributing](CONTRIBUTING.md)
+- [MIT License](LICENSE)
 
-1. Get a free API key from [https://openrouter.ai](https://openrouter.ai)
-2. Save your key to a secure file:
+## Project status and claims
 
-```bash
-echo "sk-or-xxxxxxxxxxxxxxxxxxxxxxxx" > ~/.openrouter_key
-chmod 600 ~/.openrouter_key
-```
+RedVenom is an independently maintained, early-stage security automation project. Its output is exploratory and must be manually validated. The built-in response matching is heuristic; it is not a proof engine and can produce false positives or miss vulnerabilities. A completed run does not establish that a target is secure.
 
-RedVenom will use this key to:
-- Answer recon/fuzzing questions
-- Generate AI-powered summaries in `ai_report.txt`
+The related VulnGPT work at NovaSecLabs is a separate application-security research and product effort. RedVenom is not the VulnGPT scanning engine, and this repository does not include VulnGPT's proprietary implementation.
 
----
+## Responsible use
 
-## 📁 Output Directory Structure
-
-All results are saved in the `recon_venom/` folder:
-
-```bash
-recon_venom/
-├── subdomains.txt
-├── gau_urls.txt
-├── httpx_live.txt
-├── paramspider_raw.txt
-├── all_cleaned_urls.txt
-├── sqlmap_results/
-├── xsstrike_results.txt
-├── fuzzing_log.txt
-└── ai_report.txt
-```
-
----
-
-## 🧠 Fuzzing Payload Coverage
-
-| Category         | Example Payload                    |
-|------------------|------------------------------------|
-| XSS              | `<script>alert(1)</script>`        |
-| SQL Injection    | `' OR 1=1 --`                      |
-| LFI              | `../../../../etc/passwd`           |
-| RCE              | `; ping -c 1 127.0.0.1`            |
-| SSTI             | `{{7*7}}, <%= 7 * 7 %>`            |
-| SSRF             | `http://127.0.0.1`                 |
-| Open Redirect    | `/?next=http://evil.com`           |
-| JSON Injection   | `{"input":"<script>alert(1)</script>"}` |
-
----
-
-## 🧪 Sample Usage
-
-```bash
-./redvenom.sh
-```
-
-You'll be prompted for:
-
-- ✅ Target domain (e.g. `example.com`)
-- 🔐 VPN toggle
-- ⚙️ URL filtering options
-- 🤖 Optional AI queries after scan
-
----
-
-## 💡 Example RedVenom AI Prompts
-
-- `"Summarize my XSS scan results"`
-- `"Any critical findings in the recon phase?"`
-- `"What’s the most likely exploitable vector?"`
-
----
-
-## 🧼 Cleanup
-
-If VPN was enabled, RedVenom will automatically disconnect `openvpn` after execution.
-
----
-
-## ⚠️ Disclaimer
-
-> This tool is for **educational** use and **authorized penetration testing** only.  
-> **Do NOT scan** targets without permission. Unauthorized use is **illegal** and **unethical**.
-
----
-
-## 📃 License
-
-**MIT License** — Feel free to use, modify, and contribute.
-
----
-
-## 🧠 From RedVenom to VulnGPT
-
-RedVenom started as an experiment in automating reconnaissance, fuzzing, scanning, and AI-assisted security workflows. **VulnGPT** is the next step: a NovaSecLabs web-application security platform focused on deeper, stateful testing and **evidence-backed vulnerability confirmation**.
-
-VulnGPT is being engineered around areas where simple payload-and-pattern scanners struggle, including:
-
-- 🔐 Authenticated application testing and session continuity
-- 👥 Multi-user / multi-role authorization analysis
-- 🔎 BOLA / IDOR and object-ownership boundaries
-- 🧠 Business-logic and multi-step workflow testing
-- 🧱 WAF / interference-aware validation
-- 🧾 Reproducible evidence, confirmation, and retesting
-
-### Gauntlet G1 benchmark
-
-The certified first-generation Gauntlet G1 freeze recorded a **raw 39/51 matrix with fp_sum = 0**. After the benchmark's documented adjudication excluded 2 out-of-scope, 3 invalid-ground-truth, and 4 structurally unobservable rows, the **valid-in-scope score was 41/42 with 0 valid-in-scope misses remaining**. These are internal controlled benchmark results, not universal real-world detection rates. Later benchmark generations are deliberately harder.
-
-🌐 **NovaSecLabs / VulnGPT:** https://www.novaseclabs.com  
-🧪 **Private beta:** https://www.novaseclabs.com/waitlist
-
-## ⭐ Support the Project
-
-If RedVenom helps you:
-
-- ⭐ Star the repo  
-- 🍴 Fork it and contribute  
-- 💬 Share it with other hackers
+Use RedVenom only on systems you own or are explicitly authorized to test, within written scope and agreed operating limits. You are responsible for complying with applicable law, program rules, and third-party tool terms. See [Safety](docs/SAFETY.md) before use.

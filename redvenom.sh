@@ -54,6 +54,14 @@ XSSTRIKE_CMD=$(command -v xsstrike 2>/dev/null)
 
 NUCLEI_CMD=$(command -v nuclei 2>/dev/null)
 [[ -z "$NUCLEI_CMD" ]] && echo -e "${YELLOW}[!] nuclei not found. Passive scanning skipped.${NC}"
+# Fail before prompts or network activity when required dependencies are missing.
+python3 scripts/preflight.py
+PREFLIGHT_STATUS=$?
+if [[ "$PREFLIGHT_STATUS" -ne 0 ]]; then
+    echo -e "${RED}[-] Dependency preflight failed. See the messages above.${NC}"
+    exit "$PREFLIGHT_STATUS"
+fi
+
 # Version compare helper
 version_gt() {
     test "$(printf '%s\n' "$@" | sort -V | head -n 1)" != "$1"

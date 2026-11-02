@@ -41,13 +41,13 @@ git clone https://github.com/abdallahyasser12/RedVenom-v2.2.git
 cd RedVenom-v2.2
 ```
 
-Follow the step-by-step [installation guide](docs/INSTALLATION.md). Before any scan, perform the local syntax check:
+Follow the step-by-step [installation guide](docs/INSTALLATION.md). Before making changes or running an authorized assessment, run the offline verification suite:
 
 ```bash
-bash -n redvenom.sh
+bash scripts/test.sh
 ```
 
-A successful syntax check only confirms that Bash can parse the script; it does not validate scanner behavior, target scope, or safety.
+The runner checks Bash syntax, Python compilation, Markdown/local links, and the standard-library unit/contract tests. It does not install scanner dependencies, contact targets, or validate behavior against a live application.
 
 ## Running
 

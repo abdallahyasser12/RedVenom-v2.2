@@ -6,12 +6,15 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
 
 VERSION_COMMANDS: dict[str, list[str]] = {
     "subfinder": ["-version"],
@@ -95,6 +98,39 @@ def build_manifest(run_dir: Path, run_id: str, target: str, started_at: str) -> 
     }
 
 
+def write_manifest_atomic(run_dir: Path, manifest: dict[str, Any]) -> Path:
+    """Replace run_manifest.json atomically and with owner-only permissions."""
+    run_dir.mkdir(parents=True, exist_ok=True)
+    output = run_dir / "run_manifest.json"
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=".run_manifest.",
+        suffix=".tmp",
+        dir=run_dir,
+    )
+    temporary = Path(temporary_name)
+    try:
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
+            json.dump(manifest, handle, indent=2, sort_keys=True)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, output)
+        return output
+    except BaseException:
+        # fdopen owns the descriptor after it succeeds; close only if still open.
+        try:
+            os.close(descriptor)
+        except OSError:
+            pass
+        raise
+    finally:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-dir", required=True, type=Path)
@@ -104,18 +140,13 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        args.run_dir.mkdir(parents=True, exist_ok=True)
         manifest = build_manifest(args.run_dir, args.run_id, args.target, args.started_at)
-        output = args.run_dir / "run_manifest.json"
-        output.write_text(
-            json.dumps(manifest, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-    except (OSError, ValueError) as exc:
+        output = write_manifest_atomic(args.run_dir, manifest)
+    except (OSError, ValueError, TypeError) as exc:
         print(f"Run manifest creation failed: {exc}", file=sys.stderr)
         return 2
 
-    print(f"Run manifest written: {args.run_dir / 'run_manifest.json'}")
+    print(f"Run manifest written: {output}")
     return 0
 
 

@@ -159,20 +159,67 @@ RUN_DIR="recon_venom/runs/${RUN_ID}"
 PAYLOAD_DIR="${RUN_DIR}/payloads"
 mkdir -p "$RUN_DIR" "$PAYLOAD_DIR"
 
+VPN_PID_FILE="${RUN_DIR}/openvpn.pid"
+VPN_STARTED_BY_REDVENOM=0
+
+cleanup_vpn() {
+    if [[ "${VPN_STARTED_BY_REDVENOM:-0}" -ne 1 || ! -s "${VPN_PID_FILE:-}" ]]; then
+        return
+    fi
+
+    local vpn_pid=""
+    IFS= read -r vpn_pid < "$VPN_PID_FILE" || true
+    if [[ ! "$vpn_pid" =~ ^[0-9]+$ ]]; then
+        echo -e "${YELLOW}[!] VPN PID file is invalid; leaving processes untouched.${NC}"
+        return
+    fi
+
+    local process_name=""
+    process_name=$(ps -p "$vpn_pid" -o comm= 2>/dev/null | tr -d '[:space:]')
+    if [[ "$process_name" == "openvpn" ]]; then
+        echo -e "${CYAN}[*] Stopping the OpenVPN process started by this run (PID $vpn_pid)...${NC}"
+        sudo kill "$vpn_pid" || echo -e "${YELLOW}[!] Could not stop OpenVPN PID $vpn_pid.${NC}"
+        for _ in {1..10}; do
+            sudo kill -0 "$vpn_pid" 2>/dev/null || break
+            sleep 1
+        done
+    fi
+
+    rm -f "$VPN_PID_FILE"
+}
+trap cleanup_vpn EXIT
+
 # PHASE 1 — VPN (Optional)
 if [[ "$VPN_OPTION" == "y" ]]; then
-    if pgrep openvpn > /dev/null; then
-        echo -e "${GREEN}[+] VPN is already running.${NC}"
+    if pgrep -x openvpn >/dev/null 2>&1; then
+        echo -e "${GREEN}[+] An OpenVPN process is already running; RedVenom will leave it untouched.${NC}"
+    elif [[ ! -r "$HOME/vpn-config.ovpn" ]]; then
+        echo -e "${RED}[-] VPN config not found or unreadable: $HOME/vpn-config.ovpn${NC}"
+        exit 1
     else
-        echo -e "${CYAN}[*] Starting OpenVPN...${NC}"
-        sudo openvpn --config ~/vpn-config.ovpn &
-        sleep 10
-        if pgrep openvpn > /dev/null; then
-            echo -e "${GREEN}[+] VPN connected successfully.${NC}"
-        else
-            echo -e "${RED}[-] VPN failed to connect. Exiting.${NC}"
+        echo -e "${CYAN}[*] Starting a run-owned OpenVPN daemon...${NC}"
+        if ! sudo openvpn --config "$HOME/vpn-config.ovpn" --daemon --writepid "$VPN_PID_FILE"; then
+            echo -e "${RED}[-] OpenVPN failed to start.${NC}"
             exit 1
         fi
+
+        for _ in {1..15}; do
+            if [[ -s "$VPN_PID_FILE" ]]; then
+                candidate_pid=""
+                IFS= read -r candidate_pid < "$VPN_PID_FILE" || true
+                if [[ "$candidate_pid" =~ ^[0-9]+$ ]] && sudo kill -0 "$candidate_pid" 2>/dev/null; then
+                    VPN_STARTED_BY_REDVENOM=1
+                    break
+                fi
+            fi
+            sleep 1
+        done
+
+        if [[ "$VPN_STARTED_BY_REDVENOM" -ne 1 ]]; then
+            echo -e "${RED}[-] OpenVPN did not create a verifiable PID file. Refusing to claim ownership.${NC}"
+            exit 1
+        fi
+        echo -e "${GREEN}[+] Run-owned OpenVPN process started.${NC}"
     fi
 else
     echo -e "${CYAN}[*] VPN skipped by user.${NC}"
@@ -619,11 +666,8 @@ ai_menu() {
 ai_menu
 
 
-# PHASE 6 — Cleanup & VPN Disconnect
-if [[ "$VPN_OPTION" == "y" ]]; then
-    echo -e "${CYAN}[*] Disconnecting VPN...${NC}"
-    sudo killall openvpn
-    echo -e "${GREEN}[+] VPN disconnected.${NC}"
-fi
+# PHASE 6 — Cleanup
+cleanup_vpn
+trap - EXIT
 
 echo -e "${GREEN}[✔] RedVenom v3 finished. Results saved in ${RUN_DIR}/.${NC}"

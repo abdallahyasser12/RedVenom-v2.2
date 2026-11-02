@@ -85,10 +85,13 @@ Do not paste keys into source files, command history, issue reports, or commits.
 
 ## Documentation
 
+- [Architecture and data flow](docs/ARCHITECTURE.md)
 - [Installation and dependency setup](docs/INSTALLATION.md)
 - [Safety, scope, and data handling](docs/SAFETY.md)
+- [Verifying run artifacts](docs/VERIFYING_RUNS.md)
 - [Maintenance status and verification](docs/MAINTENANCE.md)
 - [Contributing](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
 - [MIT License](LICENSE)
 
 ## Project status and claims

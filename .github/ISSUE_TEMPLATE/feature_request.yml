@@ -1,0 +1,32 @@
+name: Feature request
+description: Propose a maintainability, usability, or reliability improvement.
+title: "[Feature]: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What limitation or user need does this address?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the smallest useful change from an operator's perspective.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What workarounds or other approaches have you considered?
+    validations:
+      required: false
+  - type: textarea
+    id: safety
+    attributes:
+      label: Safety and operational considerations
+      description: Explain effects on authorization, scope, request volume, data handling, and third-party tools.
+    validations:
+      required: true

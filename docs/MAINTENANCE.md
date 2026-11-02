@@ -32,7 +32,7 @@ The documentation checker validates required documentation files, balanced Markd
 
 1. Scope enforcement: no canonical scope file or per-request host allowlist is enforced across discovered URLs.
 2. Dry run: there is no mode that prints planned actions without sending network traffic.
-3. Request budgeting: concurrency is embedded in the script; there is no operator-controlled global request budget or rate profile.
+3. Request budgeting: bounded per-stage concurrency can be configured with environment variables; a global request-rate limiter and engagement-wide request budget are still absent.
 4. Run retention: each invocation now writes to a unique `recon_venom/runs/<timestamp>-<pid>/` directory, preserving prior results. A cleanup policy is still needed because old runs accumulate.
 5. Dependency preflight: missing dependencies do not consistently stop execution before later stages call missing commands.
 6. VPN integration: cleanup now records a PID and checks the process name before signaling; a local integration test with the installed OpenVPN binary and configuration is still required.

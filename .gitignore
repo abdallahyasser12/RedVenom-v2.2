@@ -1,0 +1,25 @@
+# Python environments and bytecode
+.venv/
+venv/
+__pycache__/
+*.py[code]
+
+# Runtime scan data and generated payloads
+recon_venom/
+confirmed/
+results/
+payloads/
+
+# Optional third-party checkout used by redvenom.sh
+XSSStrike/
+
+# Local secrets and environment files
+.env
+.env.*
+.openrouter_key
+*.ovpn
+
+# Logs and editor/OS noise
+*.log
+.DS_Store
+Thumbs.db

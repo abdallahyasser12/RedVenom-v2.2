@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use or reference RedVenom in research, teaching, or a technical report, please cite this software."
+type: software
+title: "RedVenom v2.2"
+authors:
+  - family-names: Yasser
+    given-names: Abdallah
+version: "2.2"
+license: MIT
+repository-code: "https://github.com/abdallahyasser12/RedVenom-v2.2"
+abstract: >-
+  RedVenom is a Bash-based workflow that orchestrates established command-line
+  tools for authorized web reconnaissance and exploratory security testing.
+  It is an early-stage interactive prototype; its outputs require manual
+  verification and do not establish that a target is secure.
+keywords:
+  - application security
+  - web security testing
+  - reconnaissance
+  - security automation

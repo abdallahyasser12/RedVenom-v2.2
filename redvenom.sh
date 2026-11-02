@@ -193,6 +193,7 @@ read -p "[?] Do you want to enable VPN? (y/n): " VPN_OPTION
 # Give every invocation a unique artifact directory; never reuse or purge prior results.
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)-${BASHPID}"
 RUN_DIR="recon_venom/runs/${RUN_ID}"
+RUN_STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 PAYLOAD_DIR="${RUN_DIR}/payloads"
 mkdir -p "$RUN_DIR" "$PAYLOAD_DIR"
 
@@ -706,5 +707,14 @@ ai_menu
 # PHASE 6 — Cleanup
 cleanup_vpn
 trap - EXIT
+
+# Persist a local evidence manifest for reproducibility; raw artifacts remain private.
+if ! python3 scripts/write_run_manifest.py \
+    --run-dir "$RUN_DIR" \
+    --run-id "$RUN_ID" \
+    --target "$TARGET" \
+    --started-at "$RUN_STARTED_AT"; then
+    echo -e "${YELLOW}[!] Could not write the run manifest; scan artifacts are still available.${NC}"
+fi
 
 echo -e "${GREEN}[✔] RedVenom v3 finished. Results saved in ${RUN_DIR}/.${NC}"

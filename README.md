@@ -4,7 +4,7 @@
 
 RedVenom combines established command-line tools for host discovery, historical URL collection, parameter discovery, vulnerability scanning, and result collection. It is intended for security practitioners working on assets they own or have explicit written permission to assess.
 
-> **Read before running:** RedVenom is an early-stage, interactive prototype—not a production-grade scanner or a safe passive-recon-only tool. The current script sends active test payloads, runs third-party scanners, deletes the previous `recon_venom/` output at startup, and has broad VPN cleanup behavior. Review [the safety notes](docs/SAFETY.md) before executing it.
+> **Read before running:** RedVenom is an early-stage, interactive prototype—not a production-grade scanner or a safe passive-recon-only tool. The current script sends active test payloads, runs third-party scanners, and has broad VPN cleanup behavior. Review the documented operational risks before executing it. Review [the safety notes](docs/SAFETY.md) before executing it.
 
 ## What it currently does
 
@@ -64,7 +64,7 @@ The current interface asks for a target domain and a VPN choice, then proceeds t
 
 ## Output and local state
 
-The script writes runtime data under `recon_venom/`, `confirmed/`, and `payloads/` (and creates a `results/` directory). It recreates payload files and removes the contents of `recon_venom/` when a run starts. Treat these directories as generated, potentially sensitive scan data. Do not commit them or upload them without the target owner's approval.
+The script writes each invocation under a unique `recon_venom/runs/<UTC timestamp>-<process id>/` directory. Payload files and scan outputs are kept inside that run directory, so a later invocation does not overwrite or delete earlier results. Treat these directories as generated, potentially sensitive scan data. They are not automatically pruned; manage retention and backups deliberately. Do not commit them or upload them without the target owner's approval.
 
 The repository `.gitignore` excludes common generated outputs, local environments, and the optional `XSStrike/` checkout. It is not a substitute for checking `git status` before committing.
 

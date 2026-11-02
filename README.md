@@ -4,7 +4,7 @@
 
 RedVenom combines established command-line tools for host discovery, historical URL collection, parameter discovery, vulnerability scanning, and result collection. It is intended for security practitioners working on assets they own or have explicit written permission to assess.
 
-> **Read before running:** RedVenom is an early-stage, interactive prototype—not a production-grade scanner or a safe passive-recon-only tool. The current script sends active test payloads, runs third-party scanners, deletes the previous `recon_venom/` output at startup, and has broad VPN cleanup behavior. Review [the safety notes](docs/SAFETY.md) before executing it.
+> **Read before running:** RedVenom is an early-stage, interactive prototype—not a production-grade scanner or a safe passive-recon-only tool. The current script sends active test payloads, runs third-party scanners, and has broad VPN cleanup behavior. Review the documented operational risks before executing it. Review [the safety notes](docs/SAFETY.md) before executing it.
 
 ## What it currently does
 
